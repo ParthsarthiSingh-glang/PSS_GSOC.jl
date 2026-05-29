@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use egg::*;
 use ordered_float::NotNan;
 
@@ -186,4 +188,15 @@ define_language! {
     }
 }
 
-//add egraph_create, egraph_saturate, egraph_extract here : 
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+
+#[no_mangle]
+pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraph<MathLang, ()> {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let mut egraph = EGraph::new(());
+    egraph.add_expr(&expr);
+}   
+
+//add egraph_saturate, egraph_extract here :
