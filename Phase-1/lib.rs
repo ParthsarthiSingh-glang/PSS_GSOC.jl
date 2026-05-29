@@ -2,8 +2,10 @@
 
 use egg::*;
 use ordered_float::NotNan;
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
 
-pub type Constant = NotNan<f64>;//for having NonNan f64 in Eq , Ord 
+pub type Constant = NotNan<f64>;
 
 define_language! {
     pub enum MathLang {
@@ -188,15 +190,36 @@ define_language! {
     }
 }
 
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+pub struct EGraphWithRoot {
+    pub egraph: EGraph<MathLang, ()>,
+    pub root:   Id,
+}
 
+// build egraph
 #[no_mangle]
-pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraph<MathLang, ()> {
+pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
     let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
     let mut egraph = EGraph::new(());
-    egraph.add_expr(&expr);
-}   
+    let root = egraph.add_expr(&expr);
+    Box::into_raw(Box::new(EGraphWithRoot { egraph, root }))
+}
 
-//add egraph_saturate, egraph_extract here :
+// apply rewrite rules
+#[no_mangle]
+pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
+    let eg = unsafe { &mut *ptr };
+    let runner = Runner::default().with_egraph(eg.egraph.clone()).run(&[]); // Phase 3: fill rules
+    eg.egraph = runner.egraph;
+}
+
+// picks best Exp, returns string
+#[no_mangle]
+pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    //AstSize is a cost fnc , just used for now.
+    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
+    CString::new(best.to_string()).unwrap().into_raw()
+}
+
+//memory checkups???
