@@ -222,4 +222,11 @@ pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     CString::new(best.to_string()).unwrap().into_raw()
 }
 
-//memory checkups???
+// alternative for Box::from_raw
+#[no_mangle]
+pub extern "C" fn egraph_destroy(ptr: *mut EGraphWithRoot) {
+    if !ptr.is_null() {
+        unsafe { drop(Box::from_raw(ptr)) };
+    }
+}
+
