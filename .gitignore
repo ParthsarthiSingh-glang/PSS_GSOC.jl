@@ -1,0 +1,9 @@
+# Rust build output
+egg-julia-ffi/target/
+
+# Julia artifacts
+*.ji
+*.so
+*.dll
+*.dylib
+Manifest.toml

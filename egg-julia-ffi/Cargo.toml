@@ -1,0 +1,12 @@
+[package]
+name = "egg-julia-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "egg_julia_ffi"
+crate-type = ["cdylib"]
+
+[dependencies]
+egg = { version = "0.11", default-features = false }
+ordered-float = "3"
