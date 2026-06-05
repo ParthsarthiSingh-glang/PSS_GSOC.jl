@@ -195,6 +195,36 @@ pub struct EGraphWithRoot {
     pub root:   Id,
 }
 
+// Simple cost function that penalizes Mul — prefers / over (* -1) forms
+struct StabilityCost;
+
+// simple 
+impl CostFunction<MathLang> for StabilityCost {
+    type Cost = usize;
+    fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> usize
+    where
+        C: FnMut(Id) -> usize,
+    {
+        let op_cost = match enode {
+            MathLang::Mul(_) => 10,  // penalize * — prefers / forms over (* -1) forms
+            _ => 1,
+        };
+        enode.fold(op_cost, |sum, id| sum.saturating_add(costs(id)))
+    }
+}
+
+// simple rule just for e2e testing 
+fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
+    vec![
+        // sqrt-cancel: sqrt(a) - sqrt(b) → 1 / (sqrt(a) + sqrt(b)) [ for now a-b=1]
+        // Herbie has explicit Sub node; Symbolics has none — a-b is stored as Add(a, Mul(-1, b))
+        // so left side matches Symbolics' AddMul form, not Herbie's (- (sqrt a) (sqrt b))
+        rewrite!("sqrt-cancel";
+            "(+ (sqrt ?a) (* ?c (sqrt ?b)))" =>
+            "(/ 1 (+ (sqrt ?a) (sqrt ?b)))")
+    ]
+}
+
 // build egraph
 #[no_mangle]
 pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
@@ -209,24 +239,28 @@ pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot 
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
-    let runner = Runner::default().with_egraph(eg.egraph.clone()).run(&[]); // Phase 3: fill rules
+    let expr = eg.egraph.id_to_expr(eg.root);
+    let runner = Runner::default()
+        .with_egraph(eg.egraph.clone())
+        .with_expr(&expr)
+        .run(&make_rules());
+    eg.root   = runner.roots[0];
     eg.egraph = runner.egraph;
 }
 
-// picks best Exp, returns string
+// extract best expression using StabilityCost
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    //AstSize is a cost fnc , just used for now.
-    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
+    // extract the best expression using StabilityCost
+    let (_, best) = Extractor::new(&eg.egraph, StabilityCost).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
 }
 
-// alternative for Box::from_raw
+// free the EGraphWithRoot heap allocation
 #[no_mangle]
 pub extern "C" fn egraph_destroy(ptr: *mut EGraphWithRoot) {
     if !ptr.is_null() {
         unsafe { drop(Box::from_raw(ptr)) };
     }
 }
-
