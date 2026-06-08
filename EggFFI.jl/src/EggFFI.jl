@@ -2,13 +2,14 @@ module EggFFI
 
 using TermInterface
 using Symbolics
+using SymbolicUtils
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(@__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
 
 include("converter.jl")
 
-export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr
+export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr, to_sexpr
 
 """
     egraph_create(expr::String) -> Ptr{Cvoid}
