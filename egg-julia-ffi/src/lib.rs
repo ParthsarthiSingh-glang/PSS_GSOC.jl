@@ -13,6 +13,8 @@ define_language! {
         // General Math - unary
         "uplus"   = UPlus(Id),
         "uminus"  = UMinus(Id),
+        // neg: unary negation — matches Herbie's "neg" = Neg([Id; 1]) in egg-herbie/src/math.rs
+        "neg"     = Neg(Id),
         "sqrt"    = Sqrt(Id),
         "cbrt"    = Cbrt(Id),
         "abs"     = Abs(Id),
