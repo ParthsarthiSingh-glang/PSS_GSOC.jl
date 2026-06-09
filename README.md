@@ -7,41 +7,36 @@ The end goal: a user writes `optimize_accuracy(expr)` on a Symbolics.jl expressi
 ## Project Structure
 
 ```
-EggFFI.jl/               ← Julia package (ccall wrappers + expression converter)
-  src/EggFFI.jl          ← module, ccall wrappers, optimize_expr pipeline
-  src/converter.jl       ← to_sexpr: Symbolics expr → s-expression string
-  test/runtests.jl
+EggFFI.jl/
+  src/EggFFI.jl        ← ccall wrappers + optimize_expr pipeline
+  src/converter.jl     ← to_sexpr: Symbolics expr → s-expression string
+  test/runtests.jl     ← structural tests + Herbie benchmark expressions
   Project.toml
 
-egg-julia-ffi/           ← Rust FFI crate
-  src/lib.rs             ← MathLang (150+ nodes), EGraphWithRoot, 4 C-exported functions
+egg-julia-ffi/
+  src/lib.rs           ← MathLang (150+ nodes), EGraphWithRoot, FFI functions
   Cargo.toml
 ```
 
 ## Pipeline
 
 ```
-Symbolics expr (EX)
-       ↓  to_sexpr(EX)          — TermInterface: iscall, operation, sorted_arguments
-  s-expression string
-       ↓  egraph_create(s)      — Rust: parse string → RecExpr → EGraph
-  Ptr{Cvoid}
-       ↓  egraph_saturate!(ptr) — Rust: apply rewrite rules until saturation
-  Ptr{Cvoid} (modified in place)
-       ↓  egraph_extract(ptr)   — Rust: cost function → best RecExpr → string
-  s-expression string
-       ↓  egraph_destroy(ptr)   — Rust: free heap memory
-       ↓  from_sexpr(ans)       — string → Symbolics expr [next]
-  Symbolics expr (optimized)
+Symbolics expr
+    ↓  to_sexpr          — reads AddMul coeff/dict (SymbolicUtils/src/types.jl)
+s-expression string
+    ↓  egraph_create     — Rust: string → RecExpr → EGraph
+    ↓  egraph_saturate!  — Rust: rewrite rules until saturation
+    ↓  egraph_extract    — Rust: cost function → best expression
+    ↓  egraph_destroy    — Rust: free heap
+    ↓  from_sexpr        — string → Symbolics expr [next]
+Symbolics expr (optimized)
 ```
 
 ## Quick Start
 
 ```julia
-# 1. build the Rust crate first
-# cd egg-julia-ffi && cargo build --release
+# build Rust crate first: cd egg-julia-ffi && cargo build --release
 
-# 2. in Julia REPL from EggFFI.jl/
 using Pkg; Pkg.activate(".")
 include("src/EggFFI.jl")
 using Symbolics
@@ -51,44 +46,42 @@ EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
 # → "(/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))"
 ```
 
-## Current Goal
+## Done
 
-A Symbolics expression goes in, rewrite rules run inside egg, and a better Symbolics expression comes out.
+**Phase 1 — FFI layer**
+- `MathLang` (150+ nodes) + 4 C-exported functions in `egg-julia-ffi/src/lib.rs`
+- Julia `ccall` wrappers in `EggFFI.jl`
+- Round-trip verified: s-expression → egg → saturate → extract → string
+
+**Phase 2 — `to_sexpr` ([PR #4](https://github.com/ParthsarthiSingh-glang/PSS_GSOC.jl/pull/4))**
+- Reads `coeff` and `dict` directly from `AddMul` nodes — `SymbolicUtils/src/types.jl`
+- Emits `(- a b)` for subtraction and `(neg a)` for negation — matching Herbie rule patterns (`herbie/src/core/rules.rkt`)
+- Added `"neg" = Neg(Id)` to `MathLang` — matching `herbie/egg-herbie/src/math.rs`
+- Tests cover structural cases + Herbie benchmark expressions (`herbie/bench/`)
+
+**Demo**
 
 ```julia
 @variables x
-optimize_accuracy(sqrt(x + 1) - sqrt(x))
-# goal → 1 / (sqrt(x+1) + sqrt(x))   ← the numerically stable form
+EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
+# → "(/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))"
 ```
 
 ## Next Steps
 
-**Fix `to_sexpr`**
-
-Right now Symbolics represents `a - b` internally as `Add(a, Mul(-1, b))` — there is no explicit `Sub` node. So `to_sexpr` currently emits `(+ a (* -1 b))` instead of `(- a b)`.
-
-Herbie's rules ([rules.rkt](https://github.com/herbie-fp/herbie/blob/main/src/core/rules.rkt)) are all written with explicit `(- a b)` and `(neg a)` forms. To port them directly without rewriting every pattern, `to_sexpr` needs to detect `Add(a, Mul(-1, b))` and emit `(- a b)`, and detect `Mul(-1, a)` and emit `(neg a)`.
-
-Evidence: `SymbolicUtils.jl/src/terminterface.jl` — `arguments()` for `AddMul.ADD` wraps each term as `Mul(coeff, term)`. Detection via `ismul` and `get_mul_coefficient` from `SymbolicUtils.jl/src/types.jl`.
-
-**Add `neg` to `MathLang`**
-
-Herbie has an explicit `Neg` unary node (`herbie/egg-herbie/src/math.rs`: `"neg" = Neg([Id; 1])`). Our `MathLang` in `lib.rs` needs `"neg" = Neg(Id)` so egg can parse `(neg a)` from `to_sexpr`.
-
-**Port rules from Herbie directly**
-
-Once `to_sexpr` emits proper `(- a b)` and `(neg a)`, Herbie's rules port straight to Rust without adaptation.
-
-## Known Limitations
-
-- `to_sexpr` emits `(+ a (* -1 b))` for subtraction — blocks direct use of Herbie's rules. Fix in progress.
-- `to_sexpr` breaks for expressions like `x + y + z` — egg expects `+` to take exactly 2 arguments. Fix deferred.
-- `from_sexpr` not done yet — `optimize_expr` returns a string, not a Symbolics expression.
+- **Port Herbie rules** — `to_sexpr` now emits `(- a b)` so rules from `herbie/src/core/rules.rkt` port directly (`flip--`, `diff-log`, `sum-log`, FMA transforms)
+- **`from_sexpr`** — parse result string back to `Symbolics.Num` via `maketerm` (`SymbolicUtils/src/terminterface.jl`)
+- **Constant folding** — `ConstantFolding` Analysis in egg (`egg/src/language.rs`) to simplify numerators
+- **Sampling cost function** — replace `StabilityCost` with Float64 vs BigFloat accuracy sampling (Phase 4)
 
 ## References
 
 - [egg crate](https://crates.io/crates/egg) (v0.11.0)
-- [Herbie](https://herbie.uwplse.org/)
-- [Herbie rules](https://github.com/herbie-fp/herbie/blob/main/src/core/rules.rkt)
+- [Herbie](https://herbie.uwplse.org/) — [rules.rkt](https://github.com/herbie-fp/herbie/blob/main/src/core/rules.rkt)
 - [TermInterface.jl](https://github.com/JuliaSymbolics/TermInterface.jl)
+- [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl)
 - [Julia ccall docs](https://docs.julialang.org/en/v1/manual/calling-c-and-fortran-code/)
+
+## AI Assistance
+
+Developed with assistance from [Claude Pro](https://claude.ai) (Anthropic) — used for reading source across SymbolicUtils.jl, egg, and Herbie repos, debugging FFI issues, and writing tests.
