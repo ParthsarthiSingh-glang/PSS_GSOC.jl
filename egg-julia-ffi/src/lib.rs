@@ -13,6 +13,8 @@ define_language! {
         // General Math - unary
         "uplus"   = UPlus(Id),
         "uminus"  = UMinus(Id),
+        // neg: unary negation — matches Herbie's "neg" = Neg([Id; 1]) in egg-herbie/src/math.rs
+        "neg"     = Neg(Id),
         "sqrt"    = Sqrt(Id),
         "cbrt"    = Cbrt(Id),
         "abs"     = Abs(Id),
@@ -195,33 +197,13 @@ pub struct EGraphWithRoot {
     pub root:   Id,
 }
 
-// Simple cost function that penalizes Mul — prefers / over (* -1) forms
-struct StabilityCost;
-
-// simple 
-impl CostFunction<MathLang> for StabilityCost {
-    type Cost = usize;
-    fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> usize
-    where
-        C: FnMut(Id) -> usize,
-    {
-        let op_cost = match enode {
-            MathLang::Mul(_) => 10,  // penalize * — prefers / forms over (* -1) forms
-            _ => 1,
-        };
-        enode.fold(op_cost, |sum, id| sum.saturating_add(costs(id)))
-    }
-}
-
-// simple rule just for e2e testing 
+// Phase 4 will replace AstSize with a sampling cost function (Float64 vs BigFloat accuracy).
 fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
     vec![
-        // sqrt-cancel: sqrt(a) - sqrt(b) → 1 / (sqrt(a) + sqrt(b)) [ for now a-b=1]
-        // Herbie has explicit Sub node; Symbolics has none — a-b is stored as Add(a, Mul(-1, b))
-        // so left side matches Symbolics' AddMul form, not Herbie's (- (sqrt a) (sqrt b))
-        rewrite!("sqrt-cancel";
-            "(+ (sqrt ?a) (* ?c (sqrt ?b)))" =>
-            "(/ 1 (+ (sqrt ?a) (sqrt ?b)))")
+        // Herbie source: herbie/src/core/rules.rkt
+        rewrite!("flip--";
+            "(- (sqrt ?a) (sqrt ?b))" =>
+            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))")
     ]
 }
 
@@ -248,12 +230,10 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     eg.egraph = runner.egraph;
 }
 
-// extract best expression using StabilityCost
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    // extract the best expression using StabilityCost
-    let (_, best) = Extractor::new(&eg.egraph, StabilityCost).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
 }
 
