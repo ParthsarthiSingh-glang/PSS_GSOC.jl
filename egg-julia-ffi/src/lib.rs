@@ -197,7 +197,6 @@ pub struct EGraphWithRoot {
     pub root:   Id,
 }
 
-// Phase 4 will replace AstSize with a sampling cost function (Float64 vs BigFloat accuracy).
 fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
     vec![
         // Herbie source: herbie/src/core/rules.rkt
@@ -230,6 +229,7 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     eg.egraph = runner.egraph;
 }
 
+// default AstSize() cost fnc
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };

@@ -72,3 +72,72 @@ function _add_to_sexpr(expr)::String
     args = sorted_arguments(expr)
     return "($(nameof(op)) $(join(map(to_sexpr, args), " ")))"
 end
+
+# operator maping to match the op that the current rules can emit.
+const OP_MAP = Dict{String, Any}(
+    "+"    => (+),
+    "-"    => (-),
+    "/"    => (/),
+    "sqrt" => sqrt,
+)
+
+# returns either a String (leaf) or Tuple{String, Vector{Any}} (compound node)
+# recursive implementation
+function parse_sexpr(s::AbstractString)
+    s = String(strip(s))
+    if startswith(s, "(")
+        inner  = String(s[2:end-1])
+        tokens = totoken(inner)
+        op     = tokens[1]
+        args   = [parse_sexpr(t) for t in tokens[2:end]]
+        return (op, args)
+    else
+        return s
+    end
+end
+
+# totoken: split s-expression into tokens
+# "+ (sqrt x) 1" → ["+", "(sqrt x)", "1"]
+# AbstractString solves the MethodError
+function totoken(s::AbstractString)::Vector{String}
+    tokens = String[]
+    depth  = 0
+    start  = 1
+    for (i, c) in enumerate(s)
+        if c == '('
+            depth += 1
+        elseif c == ')'
+            depth -= 1
+        elseif c == ' ' && depth == 0
+            push!(tokens, String(strip(s[start:i-1])))
+            start = i + 1
+        end
+    end
+    push!(tokens, String(strip(s[start:end])))
+    return tokens
+end
+
+# build_expr: nested structure → Symbolics.Num
+function build_expr(tree, vars::Dict{String, Num})::Num
+    if tree isa String #leaf node
+        # try Int , Float64 
+        vi = tryparse(Int, tree)
+        vi !== nothing && return Num(vi)
+        vf = tryparse(Float64, tree)
+        vf !== nothing && return Num(vf)
+        return vars[tree]
+    end
+    op, args = tree
+    # neg is a special case 
+    if op == "neg"
+        return -build_expr(args[1], vars)
+    end
+    f        = OP_MAP[op]
+    children = [build_expr(a, vars) for a in args]
+    return Num(TermInterface.maketerm(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, f, Symbolics.unwrap.(children), nothing))
+end
+
+# from_sexpr
+function from_sexpr(s::String, vars::Dict{String, Num})::Num
+    build_expr(parse_sexpr(s), vars)
+end
