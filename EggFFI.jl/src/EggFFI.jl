@@ -9,7 +9,7 @@ const LIBPATH = joinpath(@__DIR__, "..", "..", "egg-julia-ffi", "target", "relea
 
 include("converter.jl")
 
-export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr, to_sexpr
+export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr, from_sexpr, to_sexpr
 
 """
     egraph_create(expr::String) -> Ptr{Cvoid}
@@ -52,19 +52,18 @@ function egraph_destroy(ptr::Ptr{Cvoid})
 end
 
 """
-    optimize_expr(expr) -> String
+    optimize_expr(expr, vars::Dict{String, Num}) -> Num
 
-    Full pipeline: Symbolics expr -> s-expression -> egraph -> saturate -> extract -> string.
-    Returns optimized s-expression string (from_sexpr comes in next commit).
-    No rules yet (Phase 3) — returns same expression back for now.
+    Full pipeline: Symbolics expr → s-expression → egraph → saturate → extract → Symbolics.Num.
+    Cost function (Phase 4) determines the best extracted expression.
 """
-function optimize_expr(expr)::String
+function optimize_expr(expr, vars::Dict{String, Num})::Num
     s   = to_sexpr(expr)
     ptr = egraph_create(s)
     egraph_saturate!(ptr)
     res = egraph_extract(ptr)
     egraph_destroy(ptr)
-    return res
+    return from_sexpr(res, vars)
 end
 
 end
