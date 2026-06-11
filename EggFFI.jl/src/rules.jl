@@ -1,10 +1,5 @@
 # rules.jl — operator map for from_sexpr
 #
-# Maps egg s-expression operator names → Julia functions
-# Mirrors DiffRules.jl/src/rules.jl — every @define_diffrule entry
-# has a corresponding entry here so from_sexpr can reconstruct
-# any expression that to_sexpr can emit.
-#
 # Sources:
 #   DiffRules.jl/src/rules.jl
 #   herbie/egg-herbie/src/math.rs — neg, fabs, ceil, floor, round
