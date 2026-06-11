@@ -3,6 +3,8 @@ using Symbolics
 using SymbolicUtils
 using SymbolicUtils: BSImpl, MData
 
+include("rules.jl")
+
 # to_sexpr: Symbolics.Num → egg s-expression string
 #
 # Symbolics stores arithmetic as AddMul nodes — SymbolicUtils/src/types.jl
@@ -72,14 +74,6 @@ function _add_to_sexpr(expr)::String
     args = sorted_arguments(expr)
     return "($(nameof(op)) $(join(map(to_sexpr, args), " ")))"
 end
-
-# operator maping to match the op that the current rules can emit.
-const OP_MAP = Dict{String, Any}(
-    "+"    => (+),
-    "-"    => (-),
-    "/"    => (/),
-    "sqrt" => sqrt,
-)
 
 # returns either a String (leaf) or Tuple{String, Vector{Any}} (compound node)
 # recursive implementation
