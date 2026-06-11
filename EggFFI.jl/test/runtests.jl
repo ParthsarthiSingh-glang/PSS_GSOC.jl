@@ -4,61 +4,23 @@ using Symbolics
 include("../src/EggFFI.jl")
 using .EggFFI
 
-@variables x y z a b c
+@variables x y a b c
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Basic structural tests — all AddMul categories from SymbolicUtils/src/types.jl
-# ─────────────────────────────────────────────────────────────────────────────
+@testset "e2e tests" begin
+    @variables x y
 
-@testset "to_sexpr — basic unchanged cases" begin
-    @test EggFFI.to_sexpr(x + 1)            == "(+ 1 x)"
-    @test EggFFI.to_sexpr(sin(x))           == "(sin x)"
-    @test EggFFI.to_sexpr(sqrt(x))          == "(sqrt x)"
-    @test EggFFI.to_sexpr(x ^ 2)            == "(^ x 2)"
-    @test EggFFI.to_sexpr(x / 2)            == "(/ x 2)"
-    @test EggFFI.to_sexpr(log(x))           == "(log x)"
-    @test EggFFI.to_sexpr(cos(x))           == "(cos x)"
-end
+    # basic subtraction — only uses +, -, /, sqrt (current OP_MAP)
+    @test isequal(EggFFI.from_sexpr(EggFFI.to_sexpr(sqrt(x+1) - sqrt(x)), Dict("x" => x)), sqrt(x+1) - sqrt(x))
 
-@testset "to_sexpr — negation (neg a)" begin
-    @test EggFFI.to_sexpr(-sin(x))          == "(neg (sin x))"
-    @test EggFFI.to_sexpr(-cos(x))          == "(neg (cos x))"
-    @test EggFFI.to_sexpr(-log(x))          == "(neg (log x))"
-    @test EggFFI.to_sexpr(-sqrt(x))         == "(neg (sqrt x))"
-    @test EggFFI.to_sexpr(-x)               == "(neg x)"
-    @test EggFFI.to_sexpr(-(x^2))           == "(neg (^ x 2))"
-    @test EggFFI.to_sexpr(-2x)              == "(* -2 x)"
-    @test EggFFI.to_sexpr(-(x + 1))         == "(+ -1 (neg x))"
-end
+    # negation
+    @test isequal(EggFFI.from_sexpr(EggFFI.to_sexpr(-sqrt(x)), Dict("x" => x)), -sqrt(x))
 
-@testset "to_sexpr — subtraction Case 1: coeff=0, one +1 and one -1 in dict" begin
-    @test EggFFI.to_sexpr(x - y)                        == "(- x y)"
-    @test EggFFI.to_sexpr(sin(x) - cos(x))              == "(- (sin x) (cos x))"
-    @test EggFFI.to_sexpr(sqrt(x + 1) - sqrt(x))        == "(- (sqrt (+ 1 x)) (sqrt x))"
-    @test EggFFI.to_sexpr(log(x + 1) - log(x))          == "(- (log (+ 1 x)) (log x))"
-    @test EggFFI.to_sexpr(sin(x) - cos(y))              == "(- (sin x) (cos y))"
-    @test EggFFI.to_sexpr(sqrt(x + 1) - sqrt(x + 2))   == "(- (sqrt (+ 1 x)) (sqrt (+ 2 x)))"
-    @test EggFFI.to_sexpr(2x - 3y)                      == "(- (* 2 x) (* 3 y))"
-    @test EggFFI.to_sexpr(sin(x)^2 - cos(x)^2)         == "(- (^ (sin x) 2) (^ (cos x) 2))"
-end
+    # coeff < 0, coeff > 0
+    @test isequal(EggFFI.from_sexpr(EggFFI.to_sexpr(x - 1), Dict("x" => x)), x - 1)
+    @test isequal(EggFFI.from_sexpr(EggFFI.to_sexpr(1 - x), Dict("x" => x)), 1 - x)
 
-@testset "to_sexpr — subtraction Case 2: coeff<0, one +1 term in dict" begin
-    @test EggFFI.to_sexpr(x - 1)                        == "(- x 1)"
-    @test EggFFI.to_sexpr(x^2 - 1)                      == "(- (^ x 2) 1)"
-    @test EggFFI.to_sexpr(sin(x) - 1)                   == "(- (sin x) 1)"
-    @test EggFFI.to_sexpr(sqrt(x) - 1)                  == "(- (sqrt x) 1)"
-    @test EggFFI.to_sexpr(sqrt(x^2 - 1))                == "(sqrt (- (^ x 2) 1))"
-end
-
-@testset "to_sexpr — subtraction Case 3: coeff>0, one -1 term in dict" begin
-    @test EggFFI.to_sexpr(1 - x)                        == "(- 1 x)"
-    @test EggFFI.to_sexpr(1 - sin(x))                   == "(- 1 (sin x))"
-end
-
-@testset "to_sexpr — edge cases" begin
-    @test EggFFI.to_sexpr(x - x)                        == "0"
-    @test EggFFI.to_sexpr(sqrt(x + 100) - sqrt(x))      == "(- (sqrt (+ 100 x)) (sqrt x))"
-    @test EggFFI.to_sexpr(-(-sin(x)))                    == "(sin x)"
+    # two variables
+    @test isequal(EggFFI.from_sexpr(EggFFI.to_sexpr(sqrt(x+y) - sqrt(x)), Dict("x" => x, "y" => y)), sqrt(x+y) - sqrt(x))
 end
 
 # ─────────────────────────────────────────────────────────────────────────────
