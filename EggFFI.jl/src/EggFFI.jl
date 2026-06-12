@@ -66,4 +66,16 @@ function optimize_expr(expr, vars::Dict{String, Num})::Num
     return from_sexpr(res, vars)
 end
 
+"""
+    optimize_expr(expr) -> Num
+
+    Same as optimize_expr(expr, vars) but automatically builds the variable
+    dictionary from `expr` via Symbolics.get_variables — no manual Dict needed.
+
+"""
+function optimize_expr(expr)::Num
+    vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
+    return optimize_expr(expr, vars)
+end
+
 end
