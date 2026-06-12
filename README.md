@@ -40,6 +40,12 @@ include("src/EggFFI.jl")
 using Symbolics
 
 @variables x
+EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
+```
+
+Variables are extracted automatically via `Symbolics.get_variables`. For explicit control, pass a `Dict{String, Num}` directly:
+
+```julia
 EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x), Dict("x" => x))
 ```
 
