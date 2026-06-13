@@ -87,3 +87,35 @@ pub extern "C" fn egraph_destroy(ptr: *mut EGraphWithRoot) {
         unsafe { drop(Box::from_raw(ptr)) };
     }
 }
+
+// ==================== UTILITY FUNCTIONS ====================
+// e-graph interactions — herbie/egg-herbie/src/lib.rs
+
+// total number of e-classes in the e-graph
+#[no_mangle]
+pub extern "C" fn egraph_size(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph.number_of_classes() as u32
+}
+
+// number of equivalent e-nodes in the e-class with the given id
+#[no_mangle]
+pub extern "C" fn egraph_eclass_size(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph[Id::from(id as usize)].nodes.len() as u32
+}
+
+// canonical id for a given id (union-find lookup)
+#[no_mangle]
+pub extern "C" fn egraph_find(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
+    let eg = unsafe { &*ptr };
+    let canon_id = eg.egraph.find(Id::from(id as usize));
+    usize::from(canon_id) as u32
+}
+
+// id of the root e-class
+#[no_mangle]
+pub extern "C" fn egraph_root_id(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    usize::from(eg.root) as u32
+}
