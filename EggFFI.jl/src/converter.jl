@@ -29,20 +29,34 @@ function to_sexpr(expr)::String
     end
 end
 
-# coeff=-1, single dict term → (neg term), else fallback
+# fold a list of s-expr term strings into nested binary form
+# herbie/src/syntax/sugar.rkt
+# egg/MathLang's Add/Mul/Sub are strictly binary (Add([Id; 2])) 
+# N-ary (op a b c ...) must be folded to binary before crossing the FFI boundary and before reaching egg-herbie.
+function _fold_to_binary(op::String, terms::Vector{String})::String
+    length(terms) == 1 && return terms[1]
+    return "($op $(terms[1]) $(_fold_to_binary(op, terms[2:end])))"
+end
+
 function _mul_to_sexpr(expr)::String
     coeff = MData.variant_getfield(expr, BSImpl.AddMul, :coeff)
     dict  = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
 
+    # coeff=-1, single dict term → (neg term)
     if coeff == -1 && length(dict) == 1
         term, exp = only(dict)
         inner = exp == 1 ? to_sexpr(term) : to_sexpr(term ^ exp)
         return "(neg $inner)"
     end
 
-    op   = operation(expr)
-    args = sorted_arguments(expr)
-    return "($(nameof(op)) $(join(map(to_sexpr, args), " ")))"
+    # fold coeff (if != 1) and all dict factors into nested binary (* ...)
+    factors = String[]
+    coeff == 1 || push!(factors, string(coeff))
+    for (term, exp) in dict
+        push!(factors, exp == 1 ? to_sexpr(term) : to_sexpr(term ^ exp))
+    end
+
+    return _fold_to_binary("*", factors)
 end
 
 # emit (- a b) for clean binary subtraction, else (+ ...)
@@ -70,9 +84,20 @@ function _add_to_sexpr(expr)::String
         return "(- $(coeff) $(_term_str(neg[1]...)))"
     end
 
-    op   = operation(expr)
-    args = sorted_arguments(expr)
-    return "($(nameof(op)) $(join(map(to_sexpr, args), " ")))"
+    # coeff first: SymbolicUtils' sorted_arguments places numeric constants before symbolic terms .
+    # Order doesn't affect from_sexpr — maketerm flattens regardless .
+    terms = String[]
+    if !iszero(coeff)
+        coeff > 0 ? push!(terms, string(coeff)) : push!(terms, "(neg $(abs(coeff)))")
+    end
+    for (t, c) in pos
+        push!(terms, _term_str(t, c))
+    end
+    for (t, c) in neg
+        push!(terms, "(neg $(_term_str(t, abs(c))))")
+    end
+
+    return _fold_to_binary("+", terms)
 end
 
 # returns either a String (leaf) or Tuple{String, Vector{Any}} (compound node)
