@@ -9,7 +9,8 @@ const LIBPATH = joinpath(@__DIR__, "..", "..", "egg-julia-ffi", "target", "relea
 
 include("converter.jl")
 
-export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr, from_sexpr, to_sexpr
+export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr, from_sexpr, to_sexpr,
+       egraph_size, egraph_eclass_size, egraph_find, egraph_root_id
 
 """
     egraph_create(expr::String) -> Ptr{Cvoid}
@@ -76,6 +77,47 @@ end
 function optimize_expr(expr)::Num
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
     return optimize_expr(expr, vars)
+end
+
+# ==================== UTILITY FUNCTIONS ====================
+# e-graph introspection — herbie/egg-herbie/src/lib.rs
+
+"""
+    egraph_size(ptr::Ptr{Cvoid}) -> UInt32
+
+    Total number of e-classes in the e-graph.
+"""
+function egraph_size(ptr::Ptr{Cvoid})::UInt32
+    ccall((:egraph_size, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
+end
+
+"""
+    egraph_eclass_size(ptr::Ptr{Cvoid}, id::Integer) -> UInt32
+
+    Number of equivalent e-nodes in the e-class with the given id —
+    i.e. how many equivalent forms egg found for that e-class.
+"""
+function egraph_eclass_size(ptr::Ptr{Cvoid}, id::Integer)::UInt32
+    ccall((:egraph_eclass_size, LIBPATH), UInt32, (Ptr{Cvoid}, UInt32), ptr, id)
+end
+
+"""
+    egraph_find(ptr::Ptr{Cvoid}, id::Integer) -> UInt32
+
+    Canonical id for the given id (union-find lookup).
+"""
+function egraph_find(ptr::Ptr{Cvoid}, id::Integer)::UInt32
+    ccall((:egraph_find, LIBPATH), UInt32, (Ptr{Cvoid}, UInt32), ptr, id)
+end
+
+"""
+    egraph_root_id(ptr::Ptr{Cvoid}) -> UInt32
+
+    Id of the root e-class — pass to egraph_eclass_size to inspect
+    how many equivalent forms exist for the root expression.
+"""
+function egraph_root_id(ptr::Ptr{Cvoid})::UInt32
+    ccall((:egraph_root_id, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
 end
 
 end

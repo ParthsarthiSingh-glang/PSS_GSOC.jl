@@ -1,12 +1,10 @@
 #![recursion_limit = "256"]
 
 use egg::*;
-use ordered_float::NotNan;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-pub type Constant = NotNan<f64>;
-
+pub type Constant = num_rational::BigRational;
 
 // herbie/egg-herbie/src/math.rs
 define_language! {
@@ -45,7 +43,23 @@ fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
         // Herbie source: herbie/src/core/rules.rkt
         rewrite!("flip--";
             "(- (sqrt ?a) (sqrt ?b))" =>
-            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))")
+            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
+
+        // Identity
+        rewrite!("+-inverses";
+            "(- ?a ?a)" => "0"),
+
+        // Identity
+        rewrite!("+-rgt-identity";
+            "(+ ?a 0)" => "?a"),
+        rewrite!("+-lft-identity";
+            "(+ 0 ?a)" => "?a"),
+
+        // Associativity
+        rewrite!("associate--l+";
+            "(- (+ ?a ?b) ?c)" => "(+ ?a (- ?b ?c))"),
+        rewrite!("associate--r+";
+            "(- ?a (+ ?b ?c))" => "(- (- ?a ?b) ?c)")
     ]
 }
 
@@ -86,4 +100,36 @@ pub extern "C" fn egraph_destroy(ptr: *mut EGraphWithRoot) {
     if !ptr.is_null() {
         unsafe { drop(Box::from_raw(ptr)) };
     }
+}
+
+// ==================== UTILITY FUNCTIONS ====================
+// e-graph interactions — herbie/egg-herbie/src/lib.rs
+
+// total number of e-classes in the e-graph
+#[no_mangle]
+pub extern "C" fn egraph_size(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph.number_of_classes() as u32
+}
+
+// number of equivalent e-nodes in the e-class with the given id
+#[no_mangle]
+pub extern "C" fn egraph_eclass_size(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph[Id::from(id as usize)].nodes.len() as u32
+}
+
+// canonical id for a given id (union-find lookup)
+#[no_mangle]
+pub extern "C" fn egraph_find(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
+    let eg = unsafe { &*ptr };
+    let canon_id = eg.egraph.find(Id::from(id as usize));
+    usize::from(canon_id) as u32
+}
+
+// id of the root e-class
+#[no_mangle]
+pub extern "C" fn egraph_root_id(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    usize::from(eg.root) as u32
 }
