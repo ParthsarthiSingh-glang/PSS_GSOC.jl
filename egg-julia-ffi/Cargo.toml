@@ -9,4 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 egg = { version = "0.11"}
-ordered-float = "3"
+num-rational = "0.4"
+num-bigint = "0.4"
+num-traits = "0.2"

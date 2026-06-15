@@ -1,12 +1,10 @@
 #![recursion_limit = "256"]
 
 use egg::*;
-use ordered_float::NotNan;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-pub type Constant = NotNan<f64>;
-
+pub type Constant = num_rational::BigRational;
 
 // herbie/egg-herbie/src/math.rs
 define_language! {
