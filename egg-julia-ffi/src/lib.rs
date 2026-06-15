@@ -43,7 +43,23 @@ fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
         // Herbie source: herbie/src/core/rules.rkt
         rewrite!("flip--";
             "(- (sqrt ?a) (sqrt ?b))" =>
-            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))")
+            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
+
+        // Identity
+        rewrite!("+-inverses";
+            "(- ?a ?a)" => "0"),
+
+        // Identity
+        rewrite!("+-rgt-identity";
+            "(+ ?a 0)" => "?a"),
+        rewrite!("+-lft-identity";
+            "(+ 0 ?a)" => "?a"),
+
+        // Associativity
+        rewrite!("associate--l+";
+            "(- (+ ?a ?b) ?c)" => "(+ ?a (- ?b ?c))"),
+        rewrite!("associate--r+";
+            "(- ?a (+ ?b ?c))" => "(- (- ?a ?b) ?c)")
     ]
 }
 
