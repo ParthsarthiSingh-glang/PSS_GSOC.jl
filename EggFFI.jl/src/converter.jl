@@ -14,8 +14,36 @@ include("rules.jl")
 # We read coeff/dict directly to emit (- a b) and (neg a)
 # matching Herbie rule patterns — herbie/src/core/rules.rkt
 
+# Rational(p,0) is Julia's exact-arithmetic infinity — egg has no such literal.
+struct ExactInfinityError <: Exception end
+
+# before we used string() which worked fine for Int , but not for rational . 
+# ex. string(3//7) -> "3//7" (egg can't parse) vs "(/ 3 7)" (egg can parse) [rational_fuzz]
+function _num_to_sexpr(n)::String
+    if n isa Rational
+        # zero denominator — exact infinity, egg has no such literal, skip
+        denominator(n) == 0 && throw(ExactInfinityError())
+        denominator(n) == 1 && return string(numerator(n))
+        return "(/ $(numerator(n)) $(denominator(n)))"
+    end
+    return string(n)
+end
+
 function to_sexpr(expr)::String
     expr = Symbolics.unwrap(expr)
+
+    # Numeric leaf: Julia Number (Int, Float64, Rational, etc.)
+    # Must be checked before iscall since iscall only works on BSImpl.Type.
+    expr isa Number && return _num_to_sexpr(expr)
+
+    # from printing.jl : BSImpl.Const(; val) get covered in parens {not egg parsable}
+    # we then extract the val  
+    if SymbolicUtils.isconst(expr)
+        val = SymbolicUtils.MData.variant_getfield(expr, BSImpl.Const, :val)
+        val isa Number && return _num_to_sexpr(val)
+        error("to_sexpr: unexpected non-numeric Const value: $(typeof(val)) = $val")
+    end
+
     iscall(expr) || return string(expr)
 
     if SymbolicUtils.ismul(expr)
@@ -51,7 +79,7 @@ function _mul_to_sexpr(expr)::String
 
     # fold coeff (if != 1) and all dict factors into nested binary (* ...)
     factors = String[]
-    coeff == 1 || push!(factors, string(coeff))
+    coeff == 1 || push!(factors, _num_to_sexpr(coeff))
     for (term, exp) in dict
         push!(factors, exp == 1 ? to_sexpr(term) : to_sexpr(term ^ exp))
     end
@@ -70,25 +98,25 @@ function _add_to_sexpr(expr)::String
     pos = [(t, c) for (t, c) in dict if c > 0]
     neg = [(t, c) for (t, c) in dict if c < 0]
 
-    _term_str(t, c) = c == 1 || c == -1 ? to_sexpr(t) : "(* $(abs(c)) $(to_sexpr(t)))"
+    _term_str(t, c) = c == 1 || c == -1 ? to_sexpr(t) : "(* $(_num_to_sexpr(abs(c))) $(to_sexpr(t)))"
 
     if iszero(coeff) && length(pos) == 1 && length(neg) == 1
         return "(- $(_term_str(pos[1]...)) $(_term_str(neg[1]...)))"
     end
 
     if coeff < 0 && length(pos) == 1 && isempty(neg)
-        return "(- $(_term_str(pos[1]...)) $(abs(coeff)))"
+        return "(- $(_term_str(pos[1]...)) $(_num_to_sexpr(abs(coeff))))"
     end
 
     if coeff > 0 && isempty(pos) && length(neg) == 1
-        return "(- $(coeff) $(_term_str(neg[1]...)))"
+        return "(- $(_num_to_sexpr(coeff)) $(_term_str(neg[1]...)))"
     end
 
     # coeff first: SymbolicUtils' sorted_arguments places numeric constants before symbolic terms .
     # Order doesn't affect from_sexpr — maketerm flattens regardless .
     terms = String[]
     if !iszero(coeff)
-        coeff > 0 ? push!(terms, string(coeff)) : push!(terms, "(neg $(abs(coeff)))")
+        coeff > 0 ? push!(terms, _num_to_sexpr(coeff)) : push!(terms, "(neg $(_num_to_sexpr(abs(coeff))))")
     end
     for (t, c) in pos
         push!(terms, _term_str(t, c))
@@ -139,9 +167,10 @@ end
 # build_expr: nested structure → Symbolics.Num
 function build_expr(tree, vars::Dict{String, Num})::Num
     if tree isa String #leaf node
-        # try Int , Float64 
+        # try Int
         vi = tryparse(Int, tree)
         vi !== nothing && return Num(vi)
+        # try Float64
         vf = tryparse(Float64, tree)
         vf !== nothing && return Num(vf)
         return vars[tree]

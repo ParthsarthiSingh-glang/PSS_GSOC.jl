@@ -10,7 +10,8 @@ const LIBPATH = joinpath(@__DIR__, "..", "..", "egg-julia-ffi", "target", "relea
 include("converter.jl")
 
 export egraph_create, egraph_saturate!, egraph_extract, egraph_destroy, optimize_expr, from_sexpr, to_sexpr,
-       egraph_size, egraph_eclass_size, egraph_find, egraph_root_id
+       egraph_size, egraph_eclass_size, egraph_find, egraph_root_id,
+       ExactInfinityError
 
 """
     egraph_create(expr::String) -> Ptr{Cvoid}
