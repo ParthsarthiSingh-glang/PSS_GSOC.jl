@@ -87,11 +87,21 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
 }
 
 // default AstSize() cost fnc
+// returns a CString heap allocation — caller must free via egraph_free_string
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
     let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
+}
+
+// free the CString returned by egraph_extract
+// mirrors egraph_destroy but for the extracted string allocation
+#[no_mangle]
+pub extern "C" fn egraph_free_string(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        unsafe { drop(CString::from_raw(ptr)) };
+    }
 }
 
 // free the EGraphWithRoot heap allocation

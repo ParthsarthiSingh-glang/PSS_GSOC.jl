@@ -37,10 +37,13 @@ end
 
     Extract the best expression for that 'Root' from the e-graph and return it as a string.
     Cost Function (Phase - 4) is used to determine the best expression.
+    The Rust-owned CString is freed immediately after copying into a Julia String.
 """
 function egraph_extract(ptr::Ptr{Cvoid})::String
-    raw = ccall((:egraph_extract, LIBPATH), Cstring, (Ptr{Cvoid},), ptr)
-    unsafe_string(raw)
+    raw    = ccall((:egraph_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid},), ptr)
+    result = unsafe_string(raw)   # copies bytes into a Julia-owned String
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)  # free Rust CString
+    return result
 end
 
 """

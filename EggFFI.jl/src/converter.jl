@@ -37,9 +37,8 @@ function to_sexpr(expr)::String
     expr isa Number && return _num_to_sexpr(expr)
 
     # from printing.jl : BSImpl.Const(; val) get covered in parens {not egg parsable}
-    # we then extract the val  
     if SymbolicUtils.isconst(expr)
-        val = SymbolicUtils.MData.variant_getfield(expr, BSImpl.Const, :val)
+        val = SymbolicUtils.unwrap_const(expr)
         val isa Number && return _num_to_sexpr(val)
         error("to_sexpr: unexpected non-numeric Const value: $(typeof(val)) = $val")
     end
