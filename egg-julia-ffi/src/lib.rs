@@ -34,8 +34,9 @@ define_language! {
 }
 
 pub struct EGraphWithRoot {
-    pub egraph: EGraph<MathLang, ()>,
-    pub root:   Id,
+    pub egraph:      EGraph<MathLang, ()>,
+    pub root:        Id,
+    pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
 }
 
 fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
@@ -70,10 +71,20 @@ pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot 
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
     let mut egraph = EGraph::new(());
     let root = egraph.add_expr(&expr);
-    Box::into_raw(Box::new(EGraphWithRoot { egraph, root }))
+    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
 }
 
-// apply rewrite rules
+fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
+    match reason {
+        Some(StopReason::Saturated)        => 0,
+        Some(StopReason::IterationLimit(_))=> 1,
+        Some(StopReason::NodeLimit(_))     => 2,
+        Some(StopReason::TimeLimit(_))     => 3,
+        _                                  => 4,
+    }
+}
+
+// apply rewrite rules with default limits
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
@@ -82,8 +93,16 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
         .with_egraph(eg.egraph.clone())
         .with_expr(&expr)
         .run(&make_rules());
-    eg.root   = runner.roots[0];
-    eg.egraph = runner.egraph;
+    eg.stop_reason = stop_reason_to_u8(&runner.stop_reason);
+    eg.root        = runner.roots[0];
+    eg.egraph      = runner.egraph;
+}
+
+// 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
+#[no_mangle]
+pub extern "C" fn egraph_stop_reason(ptr: *mut EGraphWithRoot) -> u8 {
+    let eg = unsafe { &*ptr };
+    eg.stop_reason
 }
 
 // default AstSize() cost fnc
