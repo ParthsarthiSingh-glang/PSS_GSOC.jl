@@ -186,3 +186,12 @@ pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_c
         None     => u32::MAX,
     }
 }
+
+// pretty-printed version of egraph_extract — use width to control line breaks
+// free via egraph_free_string
+#[no_mangle]
+pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
+    CString::new(best.pretty(width as usize)).unwrap().into_raw()
+}
