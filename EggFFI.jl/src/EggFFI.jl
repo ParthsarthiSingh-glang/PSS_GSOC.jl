@@ -11,7 +11,8 @@ include("converter.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_destroy, optimize_expr, from_sexpr, to_sexpr,
-       egraph_size, egraph_eclass_size, egraph_find, egraph_root_id,
+       egraph_size, egraph_total_size, egraph_contains,
+       egraph_eclass_size, egraph_find, egraph_root_id,
        ExactInfinityError
 
 """
@@ -138,6 +139,28 @@ end
 """
 function egraph_root_id(ptr::Ptr{Cvoid})::UInt32
     ccall((:egraph_root_id, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
+end
+
+"""
+    egraph_total_size(ptr::Ptr{Cvoid}) -> UInt32
+
+    Total unique enodes across all eclasses (memo.len()).
+    Distinct from egraph_size() which returns number of eclasses.
+"""
+function egraph_total_size(ptr::Ptr{Cvoid})::UInt32
+    ccall((:egraph_total_size, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
+end
+
+"""
+    egraph_contains(ptr::Ptr{Cvoid}, expr) -> Union{UInt32, Nothing}
+
+    Check if a Symbolics expression is present in the egraph after saturation.
+    Returns the canonical eclass id if found, nothing if not found.
+"""
+function egraph_contains(ptr::Ptr{Cvoid}, expr)::Union{UInt32, Nothing}
+    s   = to_sexpr(expr)
+    raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, s)
+    raw == typemax(UInt32) ? nothing : raw
 end
 
 end

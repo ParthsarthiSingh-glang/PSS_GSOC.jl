@@ -162,3 +162,27 @@ pub extern "C" fn egraph_root_id(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     usize::from(eg.root) as u32
 }
+
+// total unique enodes across all eclasses (memo.len())
+// distinct from egraph_size() which returns number_of_classes()
+#[no_mangle]
+pub extern "C" fn egraph_total_size(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph.total_size() as u32
+}
+
+// check if an s-expression string is present in the egraph after saturation
+// returns the eclass id if found, u32::MAX if not found
+#[no_mangle]
+pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char) -> u32 {
+    let eg = unsafe { &*ptr };
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = match expr_str.parse() {
+        Ok(e)  => e,
+        Err(_) => return u32::MAX,
+    };
+    match eg.egraph.lookup_expr(&expr) {
+        Some(id) => usize::from(id) as u32,
+        None     => u32::MAX,
+    }
+}
