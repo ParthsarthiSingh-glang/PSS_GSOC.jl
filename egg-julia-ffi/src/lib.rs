@@ -69,7 +69,7 @@ fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
 pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
     let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
-    let mut egraph = EGraph::new(());
+    let mut egraph = EGraph::new(()).with_explanations_enabled();
     let root = egraph.add_expr(&expr);
     Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
 }
@@ -194,4 +194,53 @@ pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) ->
     let eg = unsafe { &*ptr };
     let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
     CString::new(best.pretty(width as usize)).unwrap().into_raw()
+}
+
+// get the s-expression for a given eclass id
+#[no_mangle]
+pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    let expr = eg.egraph.id_to_expr(Id::from(id as usize));
+    CString::new(expr.to_string()).unwrap().into_raw()
+}
+
+// Ask the E-Graph to explain how it transformed expr1 into expr2
+// requires egraph_saturate! to have been called first
+#[no_mangle]
+pub extern "C" fn egraph_explain_equivalence(
+    ptr: *mut EGraphWithRoot, 
+    expr1_ptr: *const c_char, 
+    expr2_ptr: *const c_char
+) -> *mut c_char {
+    let eg = unsafe { &mut *ptr };
+    
+    let expr1_str = unsafe { CStr::from_ptr(expr1_ptr) }.to_str().unwrap();
+    let expr2_str = unsafe { CStr::from_ptr(expr2_ptr) }.to_str().unwrap();
+    
+    let expr1: RecExpr<MathLang> = match expr1_str.parse() {
+        Ok(e) => e,
+        Err(_) => return CString::new("Error: Failed to parse expr1").unwrap().into_raw(),
+    };
+    let expr2: RecExpr<MathLang> = match expr2_str.parse() {
+        Ok(e) => e,
+        Err(_) => return CString::new("Error: Failed to parse expr2").unwrap().into_raw(),
+    };
+    
+    // use lookup_expr 
+    let id1 = match eg.egraph.lookup_expr(&expr1) {
+        Some(id) => id,
+        None     => return CString::new("Error: expr1 not found in egraph after saturation").unwrap().into_raw(),
+    };
+    let id2 = match eg.egraph.lookup_expr(&expr2) {
+        Some(id) => id,
+        None     => return CString::new("Error: expr2 not found in egraph after saturation").unwrap().into_raw(),
+    };
+    
+    // verify both are in the same eclass before generating proof
+    if eg.egraph.find(id1) != eg.egraph.find(id2) {
+        return CString::new("Error: Expressions are not equivalent — not in the same eclass").unwrap().into_raw();
+    }
+    
+    let mut explanation = eg.egraph.explain_equivalence(&expr1, &expr2);
+    CString::new(explanation.get_flat_string()).unwrap().into_raw()
 }

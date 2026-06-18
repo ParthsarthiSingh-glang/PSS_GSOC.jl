@@ -14,8 +14,20 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
        optimize_expr, from_sexpr, to_sexpr,
        egraph_size, egraph_total_size, egraph_contains,
-       egraph_eclass_size, egraph_find, egraph_root_id,
-       ExactInfinityError
+       egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
+       ExactInfinityError, explain_equivalence
+
+"""
+    egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer) -> String
+
+    Get the s-expression for a given eclass id.
+"""
+function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
+    raw = ccall((:egraph_id_to_expr, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, UInt32), ptr, id)
+    result = unsafe_string(raw)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
+    return result
+end
 
 """
     egraph_create(expr::String) -> Ptr{Cvoid}
@@ -176,6 +188,21 @@ function egraph_contains(ptr::Ptr{Cvoid}, expr)::Union{UInt32, Nothing}
     s = to_sexpr(expr)
     raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, s)
     raw == typemax(UInt32) ? nothing : raw
+end
+
+"""
+    explain_equivalence(ptr::Ptr{Cvoid}, expr1, expr2) -> String
+
+    Ask the egraph to explain how it transformed expr1 into expr2.
+    Returns the step-by-step mathematical proof as a string.
+"""
+function explain_equivalence(ptr::Ptr{Cvoid}, expr1, expr2)::String
+    s1 = to_sexpr(expr1)
+    s2 = to_sexpr(expr2)
+    raw = ccall((:egraph_explain_equivalence, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, Cstring, Cstring), ptr, s1, s2)
+    result = unsafe_string(raw)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
+    return result
 end
 
 end
