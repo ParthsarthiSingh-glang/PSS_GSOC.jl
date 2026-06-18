@@ -34,8 +34,9 @@ define_language! {
 }
 
 pub struct EGraphWithRoot {
-    pub egraph: EGraph<MathLang, ()>,
-    pub root:   Id,
+    pub egraph:      EGraph<MathLang, ()>,
+    pub root:        Id,
+    pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
 }
 
 fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
@@ -70,10 +71,20 @@ pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot 
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
     let mut egraph = EGraph::new(());
     let root = egraph.add_expr(&expr);
-    Box::into_raw(Box::new(EGraphWithRoot { egraph, root }))
+    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
 }
 
-// apply rewrite rules
+fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
+    match reason {
+        Some(StopReason::Saturated)        => 0,
+        Some(StopReason::IterationLimit(_))=> 1,
+        Some(StopReason::NodeLimit(_))     => 2,
+        Some(StopReason::TimeLimit(_))     => 3,
+        _                                  => 4,
+    }
+}
+
+// apply rewrite rules with default limits
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
@@ -82,16 +93,34 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
         .with_egraph(eg.egraph.clone())
         .with_expr(&expr)
         .run(&make_rules());
-    eg.root   = runner.roots[0];
-    eg.egraph = runner.egraph;
+    eg.stop_reason = stop_reason_to_u8(&runner.stop_reason);
+    eg.root        = runner.roots[0];
+    eg.egraph      = runner.egraph;
+}
+
+// 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
+#[no_mangle]
+pub extern "C" fn egraph_stop_reason(ptr: *mut EGraphWithRoot) -> u8 {
+    let eg = unsafe { &*ptr };
+    eg.stop_reason
 }
 
 // default AstSize() cost fnc
+// returns a CString heap allocation — caller must free via egraph_free_string
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
     let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
+}
+
+// free the CString returned by egraph_extract
+// mirrors egraph_destroy but for the extracted string allocation
+#[no_mangle]
+pub extern "C" fn egraph_free_string(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        unsafe { drop(CString::from_raw(ptr)) };
+    }
 }
 
 // free the EGraphWithRoot heap allocation
@@ -132,4 +161,37 @@ pub extern "C" fn egraph_find(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
 pub extern "C" fn egraph_root_id(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     usize::from(eg.root) as u32
+}
+
+// total unique enodes across all eclasses (memo.len())
+// distinct from egraph_size() which returns number_of_classes()
+#[no_mangle]
+pub extern "C" fn egraph_total_size(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph.total_size() as u32
+}
+
+// check if an s-expression string is present in the egraph after saturation
+// returns the eclass id if found, u32::MAX if not found
+#[no_mangle]
+pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char) -> u32 {
+    let eg = unsafe { &*ptr };
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = match expr_str.parse() {
+        Ok(e)  => e,
+        Err(_) => return u32::MAX,
+    };
+    match eg.egraph.lookup_expr(&expr) {
+        Some(id) => usize::from(id) as u32,
+        None     => u32::MAX,
+    }
+}
+
+// pretty-printed version of egraph_extract — use width to control line breaks
+// free via egraph_free_string
+#[no_mangle]
+pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
+    CString::new(best.pretty(width as usize)).unwrap().into_raw()
 }
