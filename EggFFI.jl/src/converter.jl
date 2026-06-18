@@ -50,7 +50,7 @@ function to_sexpr(expr)::String
     elseif SymbolicUtils.isadd(expr)
         return _add_to_sexpr(expr)
     else
-        op   = operation(expr)
+        op = operation(expr)
         args = sorted_arguments(expr)
         return "($(nameof(op)) $(join(map(to_sexpr, args), " ")))"
     end
@@ -67,7 +67,7 @@ end
 
 function _mul_to_sexpr(expr)::String
     coeff = MData.variant_getfield(expr, BSImpl.AddMul, :coeff)
-    dict  = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
+    dict = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
 
     # coeff=-1, single dict term → (neg term)
     if coeff == -1 && length(dict) == 1
@@ -92,12 +92,13 @@ end
 # Case 3: coeff>0, one neg dict term            →  1 - x
 function _add_to_sexpr(expr)::String
     coeff = MData.variant_getfield(expr, BSImpl.AddMul, :coeff)
-    dict  = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
+    dict = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
 
     pos = [(t, c) for (t, c) in dict if c > 0]
     neg = [(t, c) for (t, c) in dict if c < 0]
 
-    _term_str(t, c) = c == 1 || c == -1 ? to_sexpr(t) : "(* $(_num_to_sexpr(abs(c))) $(to_sexpr(t)))"
+    _term_str(t, c) = c == 1 || c == -1 ? to_sexpr(t) :
+                      "(* $(_num_to_sexpr(abs(c))) $(to_sexpr(t)))"
 
     if iszero(coeff) && length(pos) == 1 && length(neg) == 1
         return "(- $(_term_str(pos[1]...)) $(_term_str(neg[1]...)))"
@@ -115,7 +116,8 @@ function _add_to_sexpr(expr)::String
     # Order doesn't affect from_sexpr — maketerm flattens regardless .
     terms = String[]
     if !iszero(coeff)
-        coeff > 0 ? push!(terms, _num_to_sexpr(coeff)) : push!(terms, "(neg $(_num_to_sexpr(abs(coeff))))")
+        coeff > 0 ? push!(terms, _num_to_sexpr(coeff)) :
+        push!(terms, "(neg $(_num_to_sexpr(abs(coeff))))")
     end
     for (t, c) in pos
         push!(terms, _term_str(t, c))
@@ -132,10 +134,10 @@ end
 function parse_sexpr(s::AbstractString)
     s = String(strip(s))
     if startswith(s, "(")
-        inner  = String(s[2:end-1])
+        inner = String(s[2:(end - 1)])
         tokens = totoken(inner)
-        op     = tokens[1]
-        args   = [parse_sexpr(t) for t in tokens[2:end]]
+        op = tokens[1]
+        args = [parse_sexpr(t) for t in tokens[2:end]]
         return (op, args)
     else
         return s
@@ -147,15 +149,15 @@ end
 # AbstractString solves the MethodError
 function totoken(s::AbstractString)::Vector{String}
     tokens = String[]
-    depth  = 0
-    start  = 1
+    depth = 0
+    start = 1
     for (i, c) in enumerate(s)
         if c == '('
             depth += 1
         elseif c == ')'
             depth -= 1
         elseif c == ' ' && depth == 0
-            push!(tokens, String(strip(s[start:i-1])))
+            push!(tokens, String(strip(s[start:(i - 1)])))
             start = i + 1
         end
     end
@@ -179,9 +181,11 @@ function build_expr(tree, vars::Dict{String, Num})::Num
     if op == "neg"
         return -build_expr(args[1], vars)
     end
-    f        = OP_MAP[op]
+    f = OP_MAP[op]
     children = [build_expr(a, vars) for a in args]
-    return Num(TermInterface.maketerm(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, f, Symbolics.unwrap.(children), nothing))
+    # Symbolics.jl/src/Symbolics.jl: VartypeT = @load_preference("vartype", "SymReal")
+    # safer to deal with SafeReal/TreeReal
+    return Num(TermInterface.maketerm(Symbolics.SymbolicT, f, Symbolics.unwrap.(children), nothing))
 end
 
 # from_sexpr

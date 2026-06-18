@@ -5,7 +5,8 @@ using Symbolics
 using SymbolicUtils
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
-const LIBPATH = joinpath(@__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
+const LIBPATH = joinpath(
+    @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
 
 include("converter.jl")
 
@@ -54,7 +55,7 @@ end
     The Rust-owned CString is freed immediately after copying into a Julia String.
 """
 function egraph_extract(ptr::Ptr{Cvoid})::String
-    raw    = ccall((:egraph_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid},), ptr)
+    raw = ccall((:egraph_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid},), ptr)
     result = unsafe_string(raw)
     ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
     return result
@@ -67,8 +68,9 @@ end
     with indentation when lines exceed width characters.
     Useful for debugging complex extracted expressions.
 """
-function egraph_pretty_extract(ptr::Ptr{Cvoid}; width::Integer=80)::String
-    raw    = ccall((:egraph_pretty_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, UInt32), ptr, width)
+function egraph_pretty_extract(ptr::Ptr{Cvoid}; width::Integer = 80)::String
+    raw = ccall(
+        (:egraph_pretty_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, UInt32), ptr, width)
     result = unsafe_string(raw)
     ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
     return result
@@ -91,8 +93,8 @@ end
     Cost function (Phase 4) determines the best extracted expression.
     Warns if saturation did not complete cleanly (NodeLimit, TimeLimit, etc).
 """
-function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool=true)::Num
-    s   = to_sexpr(expr)
+function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true)::Num
+    s = to_sexpr(expr)
     ptr = egraph_create(s)
     egraph_saturate!(ptr)
     reason = egraph_stop_reason(ptr)
@@ -110,7 +112,7 @@ end
     Same as optimize_expr(expr, vars) but automatically builds the variable
     dictionary from expr via Symbolics.get_variables no manual Dict needed.
 """
-function optimize_expr(expr; warn::Bool=true)::Num
+function optimize_expr(expr; warn::Bool = true)::Num
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
     return optimize_expr(expr, vars; warn)
 end
@@ -171,7 +173,7 @@ end
     Returns the canonical eclass id if found, nothing if not found.
 """
 function egraph_contains(ptr::Ptr{Cvoid}, expr)::Union{UInt32, Nothing}
-    s   = to_sexpr(expr)
+    s = to_sexpr(expr)
     raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, s)
     raw == typemax(UInt32) ? nothing : raw
 end
