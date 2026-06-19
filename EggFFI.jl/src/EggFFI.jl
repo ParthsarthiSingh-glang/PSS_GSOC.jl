@@ -15,7 +15,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        optimize_expr, from_sexpr, to_sexpr,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
-       ExactInfinityError, explain_equivalence
+       ExactInfinityError
 
 """
     egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer) -> String
@@ -41,7 +41,7 @@ end
 """
     egraph_saturate!(ptr::Ptr{Cvoid})
 
-    Apply rewrite rules with default limits (iter=30, nodes=10_000, time=5s).
+    Apply rewrite rules with node_limit=4000 (matching Herbie's *node-limit*).
     Check egraph_stop_reason() after to see why saturation stopped.
 """
 function egraph_saturate!(ptr::Ptr{Cvoid})
@@ -188,21 +188,6 @@ function egraph_contains(ptr::Ptr{Cvoid}, expr)::Union{UInt32, Nothing}
     s = to_sexpr(expr)
     raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, s)
     raw == typemax(UInt32) ? nothing : raw
-end
-
-"""
-    explain_equivalence(ptr::Ptr{Cvoid}, expr1, expr2) -> String
-
-    Ask the egraph to explain how it transformed expr1 into expr2.
-    Returns the step-by-step mathematical proof as a string.
-"""
-function explain_equivalence(ptr::Ptr{Cvoid}, expr1, expr2)::String
-    s1 = to_sexpr(expr1)
-    s2 = to_sexpr(expr2)
-    raw = ccall((:egraph_explain_equivalence, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, Cstring, Cstring), ptr, s1, s2)
-    result = unsafe_string(raw)
-    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
-    return result
 end
 
 end

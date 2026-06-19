@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 
 use egg::*;
+use num_traits::Zero;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
@@ -28,68 +29,112 @@ define_language! {
         Num(Constant),
         Symbol(egg::Symbol),
 
-        //  Other(egg::Symbol, Vec<Id>) 
+        // Other(egg::Symbol, Vec<Id>)
         Other(egg::Symbol, Vec<Id>),
     }
 }
 
+// ConstantFold: folds numeric subexpressions during saturation
+// explanations disabled in egraph_create because modify() calls union() directly
+#[derive(Default, Clone)]
+pub struct ConstantFold;
+
+impl Analysis<MathLang> for ConstantFold {
+    type Data = Option<Constant>;
+
+    fn make(egraph: &mut EGraph<MathLang, Self>, enode: &MathLang, _id: Id) -> Self::Data {
+        let x = |i: &Id| egraph[*i].data.as_ref().cloned();
+        match enode {
+            MathLang::Num(c)      => Some(c.clone()),
+            MathLang::Add([a, b]) => Some(x(a)? + x(b)?),
+            MathLang::Sub([a, b]) => Some(x(a)? - x(b)?),
+            MathLang::Mul([a, b]) => Some(x(a)? * x(b)?),
+            MathLang::Div([a, b]) => {
+                let denom = x(b)?;
+                if denom.is_zero() { None } else { Some(x(a)? / denom) }
+            }
+            _ => None,
+        }
+    }
+
+    fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
+        merge_option(to, from, |a, b| {
+            assert_eq!(*a, b, "Merged non-equal constants");
+            DidMerge(false, false)
+        })
+    }
+
+    fn modify(egraph: &mut EGraph<MathLang, Self>, id: Id) {
+        if let Some(c) = egraph[id].data.clone() {
+            let added = egraph.add(MathLang::Num(c));
+            egraph.union(id, added);
+        }
+    }
+}
+
 pub struct EGraphWithRoot {
-    pub egraph:      EGraph<MathLang, ()>,
+    pub egraph:      EGraph<MathLang, ConstantFold>,
     pub root:        Id,
     pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
 }
 
-fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
-    vec![
+fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
+    let rules = vec![
         // Herbie source: herbie/src/core/rules.rkt
         rewrite!("flip--";
             "(- (sqrt ?a) (sqrt ?b))" =>
             "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
 
         // Identity
-        rewrite!("+-inverses";
-            "(- ?a ?a)" => "0"),
+        rewrite!("+-inverses";     "(- ?a ?a)" => "0"),
+        rewrite!("+-rgt-identity"; "(+ ?a 0)"  => "?a"),
+        rewrite!("+-lft-identity"; "(+ 0 ?a)"  => "?a"),
 
-        // Identity
-        rewrite!("+-rgt-identity";
-            "(+ ?a 0)" => "?a"),
-        rewrite!("+-lft-identity";
-            "(+ 0 ?a)" => "?a"),
+        // covers (+ x c) - x → c when constant is in ?b position of (+ x c)
+        rewrite!("associate--l+b"; "(- (+ ?a ?b) ?c)" => "(+ ?b (- ?a ?c))"),
+        
+        // Exact cancellation to prevent NodeLimit explosions
+        rewrite!("cancel-+-"; "(- (+ ?a ?b) ?a)" => "?b"),
+        rewrite!("cancel-+-2"; "(- (+ ?a ?b) ?b)" => "?a"),
+    ];
 
-        // Associativity
-        rewrite!("associate--l+";
-            "(- (+ ?a ?b) ?c)" => "(+ ?a (- ?b ?c))"),
-        rewrite!("associate--r+";
-            "(- ?a (+ ?b ?c))" => "(- (- ?a ?b) ?c)")
-    ]
+    // Associativity — bidirectional, <=> expands to [fwd, rev]
+    // rules.extend(rewrite!("associate-++"; "(+ ?a (+ ?b ?c))" <=> "(+ (+ ?a ?b) ?c)"));
+    // rules.extend(rewrite!("associate-+-"; "(+ ?a (- ?b ?c))" <=> "(- (+ ?a ?b) ?c)"));
+    // rules.extend(rewrite!("associate--+"; "(- ?a (+ ?b ?c))" <=> "(- (- ?a ?b) ?c)"));
+    // rules.extend(rewrite!("associate---"; "(- ?a (- ?b ?c))" <=> "(+ (- ?a ?b) ?c)"));
+
+    rules
 }
 
-// build egraph
+// build egraph — explanations disabled so ConstantFold::modify can call union() directly
 #[no_mangle]
 pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
     let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
-    let mut egraph = EGraph::new(()).with_explanations_enabled();
+    let mut egraph = EGraph::new(ConstantFold);
     let root = egraph.add_expr(&expr);
     Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
 }
 
 fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
     match reason {
-        Some(StopReason::Saturated)        => 0,
-        Some(StopReason::IterationLimit(_))=> 1,
-        Some(StopReason::NodeLimit(_))     => 2,
-        Some(StopReason::TimeLimit(_))     => 3,
-        _                                  => 4,
+        Some(StopReason::Saturated)         => 0,
+        Some(StopReason::IterationLimit(_)) => 1,
+        Some(StopReason::NodeLimit(_))      => 2,
+        Some(StopReason::TimeLimit(_))      => 3,
+        _                                   => 4,
     }
 }
 
-// apply rewrite rules with default limits
+// node_limit=4000 matches Herbie's *node-limit* (herbie/src/config.rkt)
+// no iter_limit — Herbie uses unlimited iterations
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
     let expr = eg.egraph.id_to_expr(eg.root);
     let runner = Runner::default()
+        .with_node_limit(4000)
         .with_egraph(eg.egraph.clone())
         .with_expr(&expr)
         .run(&make_rules());
@@ -152,8 +197,7 @@ pub extern "C" fn egraph_eclass_size(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
 #[no_mangle]
 pub extern "C" fn egraph_find(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
     let eg = unsafe { &*ptr };
-    let canon_id = eg.egraph.find(Id::from(id as usize));
-    usize::from(canon_id) as u32
+    usize::from(eg.egraph.find(Id::from(id as usize))) as u32
 }
 
 // id of the root e-class
@@ -202,45 +246,4 @@ pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c
     let eg = unsafe { &*ptr };
     let expr = eg.egraph.id_to_expr(Id::from(id as usize));
     CString::new(expr.to_string()).unwrap().into_raw()
-}
-
-// Ask the E-Graph to explain how it transformed expr1 into expr2
-// requires egraph_saturate! to have been called first
-#[no_mangle]
-pub extern "C" fn egraph_explain_equivalence(
-    ptr: *mut EGraphWithRoot, 
-    expr1_ptr: *const c_char, 
-    expr2_ptr: *const c_char
-) -> *mut c_char {
-    let eg = unsafe { &mut *ptr };
-    
-    let expr1_str = unsafe { CStr::from_ptr(expr1_ptr) }.to_str().unwrap();
-    let expr2_str = unsafe { CStr::from_ptr(expr2_ptr) }.to_str().unwrap();
-    
-    let expr1: RecExpr<MathLang> = match expr1_str.parse() {
-        Ok(e) => e,
-        Err(_) => return CString::new("Error: Failed to parse expr1").unwrap().into_raw(),
-    };
-    let expr2: RecExpr<MathLang> = match expr2_str.parse() {
-        Ok(e) => e,
-        Err(_) => return CString::new("Error: Failed to parse expr2").unwrap().into_raw(),
-    };
-    
-    // use lookup_expr 
-    let id1 = match eg.egraph.lookup_expr(&expr1) {
-        Some(id) => id,
-        None     => return CString::new("Error: expr1 not found in egraph after saturation").unwrap().into_raw(),
-    };
-    let id2 = match eg.egraph.lookup_expr(&expr2) {
-        Some(id) => id,
-        None     => return CString::new("Error: expr2 not found in egraph after saturation").unwrap().into_raw(),
-    };
-    
-    // verify both are in the same eclass before generating proof
-    if eg.egraph.find(id1) != eg.egraph.find(id2) {
-        return CString::new("Error: Expressions are not equivalent — not in the same eclass").unwrap().into_raw();
-    }
-    
-    let mut explanation = eg.egraph.explain_equivalence(&expr1, &expr2);
-    CString::new(explanation.get_flat_string()).unwrap().into_raw()
 }
