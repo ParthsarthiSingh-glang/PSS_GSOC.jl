@@ -1,5 +1,8 @@
 #![recursion_limit = "256"]
 
+mod herbie_rules;
+mod my_rules;
+
 use egg::*;
 use num_traits::Zero;
 use std::ffi::{CStr, CString};
@@ -34,7 +37,7 @@ define_language! {
     }
 }
 
-// ConstantFold: folds numeric subexpressions during saturation
+// ConstantFold
 // explanations disabled in egraph_create because modify() calls union() directly
 #[derive(Default, Clone)]
 pub struct ConstantFold;
@@ -46,6 +49,7 @@ impl Analysis<MathLang> for ConstantFold {
         let x = |i: &Id| egraph[*i].data.as_ref().cloned();
         match enode {
             MathLang::Num(c)      => Some(c.clone()),
+            MathLang::Neg(a)      => Some(-x(a)?),
             MathLang::Add([a, b]) => Some(x(a)? + x(b)?),
             MathLang::Sub([a, b]) => Some(x(a)? - x(b)?),
             MathLang::Mul([a, b]) => Some(x(a)? * x(b)?),
@@ -79,32 +83,9 @@ pub struct EGraphWithRoot {
 }
 
 fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
-    let rules = vec![
-        // Herbie source: herbie/src/core/rules.rkt
-        rewrite!("flip--";
-            "(- (sqrt ?a) (sqrt ?b))" =>
-            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
-
-        // Identity
-        rewrite!("+-inverses";     "(- ?a ?a)" => "0"),
-        rewrite!("+-rgt-identity"; "(+ ?a 0)"  => "?a"),
-        rewrite!("+-lft-identity"; "(+ 0 ?a)"  => "?a"),
-
-        // covers (+ x c) - x → c when constant is in ?b position of (+ x c)
-        rewrite!("associate--l+b"; "(- (+ ?a ?b) ?c)" => "(+ ?b (- ?a ?c))"),
-        
-        // Exact cancellation to prevent NodeLimit explosions
-        rewrite!("cancel-+-"; "(- (+ ?a ?b) ?a)" => "?b"),
-        rewrite!("cancel-+-2"; "(- (+ ?a ?b) ?b)" => "?a"),
-    ];
-
-    // Associativity — bidirectional, <=> expands to [fwd, rev]
-    // rules.extend(rewrite!("associate-++"; "(+ ?a (+ ?b ?c))" <=> "(+ (+ ?a ?b) ?c)"));
-    // rules.extend(rewrite!("associate-+-"; "(+ ?a (- ?b ?c))" <=> "(- (+ ?a ?b) ?c)"));
-    // rules.extend(rewrite!("associate--+"; "(- ?a (+ ?b ?c))" <=> "(- (- ?a ?b) ?c)"));
-    // rules.extend(rewrite!("associate---"; "(- ?a (- ?b ?c))" <=> "(+ (- ?a ?b) ?c)"));
-
-    rules
+    my_rules::my_rules()
+    // herbie_rules::herbie_rules() 
+    // my_rules::my_rules()
 }
 
 // build egraph — explanations disabled so ConstantFold::modify can call union() directly
@@ -128,7 +109,7 @@ fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
 }
 
 // node_limit=4000 matches Herbie's *node-limit* (herbie/src/config.rkt)
-// no iter_limit — Herbie uses unlimited iterations
+// no iter_limit — Herbie uses unlimited iterations, relies on node_limit + BackoffScheduler
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
@@ -160,7 +141,6 @@ pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
 }
 
 // free the CString returned by egraph_extract
-// mirrors egraph_destroy but for the extracted string allocation
 #[no_mangle]
 pub extern "C" fn egraph_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
@@ -179,44 +159,36 @@ pub extern "C" fn egraph_destroy(ptr: *mut EGraphWithRoot) {
 // ==================== UTILITY FUNCTIONS ====================
 // e-graph interactions — herbie/egg-herbie/src/lib.rs
 
-// total number of e-classes in the e-graph
 #[no_mangle]
 pub extern "C" fn egraph_size(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     eg.egraph.number_of_classes() as u32
 }
 
-// number of equivalent e-nodes in the e-class with the given id
 #[no_mangle]
 pub extern "C" fn egraph_eclass_size(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
     let eg = unsafe { &*ptr };
     eg.egraph[Id::from(id as usize)].nodes.len() as u32
 }
 
-// canonical id for a given id (union-find lookup)
 #[no_mangle]
 pub extern "C" fn egraph_find(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
     let eg = unsafe { &*ptr };
     usize::from(eg.egraph.find(Id::from(id as usize))) as u32
 }
 
-// id of the root e-class
 #[no_mangle]
 pub extern "C" fn egraph_root_id(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     usize::from(eg.root) as u32
 }
 
-// total unique enodes across all eclasses (memo.len())
-// distinct from egraph_size() which returns number_of_classes()
 #[no_mangle]
 pub extern "C" fn egraph_total_size(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     eg.egraph.total_size() as u32
 }
 
-// check if an s-expression string is present in the egraph after saturation
-// returns the eclass id if found, u32::MAX if not found
 #[no_mangle]
 pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char) -> u32 {
     let eg = unsafe { &*ptr };
@@ -231,8 +203,6 @@ pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_c
     }
 }
 
-// pretty-printed version of egraph_extract — use width to control line breaks
-// free via egraph_free_string
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
@@ -240,10 +210,43 @@ pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) ->
     CString::new(best.pretty(width as usize)).unwrap().into_raw()
 }
 
-// get the s-expression for a given eclass id
 #[no_mangle]
 pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
     let expr = eg.egraph.id_to_expr(Id::from(id as usize));
     CString::new(expr.to_string()).unwrap().into_raw()
+}
+
+// returns all enodes inside a given eclass as s-expr's
+// egg stores enodes in egraph[id].nodes as a Vec<MathLang>
+#[no_mangle]
+pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    let eclass_id = Id::from(id as usize);
+    let eclass = &eg.egraph[eclass_id];
+    let mut result = String::new();
+    
+    // 1. Create the real Extractor ONCE up here!
+    let mut extractor = Extractor::new(&eg.egraph, AstSize);
+
+    for enode in &eclass.nodes {
+        let s = format!("{}", enode);
+        let children: Vec<String> = enode.children()
+            .iter()
+            .map(|child_id| {
+                // egg-0.11.0\src\extract.rs
+                let (_, child_expr) = extractor.find_best(*child_id);
+                child_expr.to_string()
+            })
+            .collect();
+            
+        let full = if children.is_empty() {
+            s
+        } else {
+            format!("({} {})", s, children.join(" "))
+        };
+        result.push_str(&full);
+        result.push('\n');
+    }
+    CString::new(result).unwrap().into_raw()
 }

@@ -86,10 +86,10 @@ function _mul_to_sexpr(expr)::String
     return _fold_to_binary("*", factors)
 end
 
-# emit (- a b) for clean binary subtraction, else (+ ...)
-# Case 1: coeff=0, one pos + one neg dict term  →  x - y
-# Case 2: coeff<0, one pos dict term            →  x - 1
-# Case 3: coeff>0, one neg dict term            →  1 - x
+# emit (+ c x) for all cases — constant first, consistent ordering
+# Case 1: coeff=0, one pos + one neg dict term  →  (- x y)
+# Case 2: coeff<0, one pos dict term            →  (+ -c x)  ← fixed: was (- x c)
+# Case 3: coeff>0, one neg dict term            →  (- c x)
 function _add_to_sexpr(expr)::String
     coeff = MData.variant_getfield(expr, BSImpl.AddMul, :coeff)
     dict = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
@@ -104,16 +104,16 @@ function _add_to_sexpr(expr)::String
         return "(- $(_term_str(pos[1]...)) $(_term_str(neg[1]...)))"
     end
 
+    # fixed
     if coeff < 0 && length(pos) == 1 && isempty(neg)
-        return "(- $(_term_str(pos[1]...)) $(_num_to_sexpr(abs(coeff))))"
+        return "(+ $(_num_to_sexpr(coeff)) $(_term_str(pos[1]...)))"
     end
 
     if coeff > 0 && isempty(pos) && length(neg) == 1
         return "(- $(_num_to_sexpr(coeff)) $(_term_str(neg[1]...)))"
     end
 
-    # coeff first: SymbolicUtils' sorted_arguments places numeric constants before symbolic terms .
-    # Order doesn't affect from_sexpr — maketerm flattens regardless .
+    # coeff first:sorted_arguments places numeric constants before symbolic terms
     terms = String[]
     if !iszero(coeff)
         coeff > 0 ? push!(terms, _num_to_sexpr(coeff)) :
