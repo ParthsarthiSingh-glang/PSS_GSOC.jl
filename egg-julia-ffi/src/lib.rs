@@ -1,6 +1,10 @@
 #![recursion_limit = "256"]
 
+mod herbie_rules;
+mod my_rules;
+
 use egg::*;
+use num_traits::Zero;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
@@ -28,68 +32,90 @@ define_language! {
         Num(Constant),
         Symbol(egg::Symbol),
 
-        //  Other(egg::Symbol, Vec<Id>) 
+        // Other(egg::Symbol, Vec<Id>)
         Other(egg::Symbol, Vec<Id>),
     }
 }
 
+// ConstantFold
+// explanations disabled in egraph_create because modify() calls union() directly
+#[derive(Default, Clone)]
+pub struct ConstantFold;
+
+impl Analysis<MathLang> for ConstantFold {
+    type Data = Option<Constant>;
+
+    fn make(egraph: &mut EGraph<MathLang, Self>, enode: &MathLang, _id: Id) -> Self::Data {
+        let x = |i: &Id| egraph[*i].data.as_ref().cloned();
+        match enode {
+            MathLang::Num(c)      => Some(c.clone()),
+            MathLang::Neg(a)      => Some(-x(a)?),
+            MathLang::Add([a, b]) => Some(x(a)? + x(b)?),
+            MathLang::Sub([a, b]) => Some(x(a)? - x(b)?),
+            MathLang::Mul([a, b]) => Some(x(a)? * x(b)?),
+            MathLang::Div([a, b]) => {
+                let denom = x(b)?;
+                if denom.is_zero() { None } else { Some(x(a)? / denom) }
+            }
+            _ => None,
+        }
+    }
+
+    fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
+        merge_option(to, from, |a, b| {
+            assert_eq!(*a, b, "Merged non-equal constants");
+            DidMerge(false, false)
+        })
+    }
+
+    fn modify(egraph: &mut EGraph<MathLang, Self>, id: Id) {
+        if let Some(c) = egraph[id].data.clone() {
+            let added = egraph.add(MathLang::Num(c));
+            egraph.union(id, added);
+        }
+    }
+}
+
 pub struct EGraphWithRoot {
-    pub egraph:      EGraph<MathLang, ()>,
+    pub egraph:      EGraph<MathLang, ConstantFold>,
     pub root:        Id,
     pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
 }
 
-fn make_rules() -> Vec<Rewrite<MathLang, ()>> {
-    vec![
-        // Herbie source: herbie/src/core/rules.rkt
-        rewrite!("flip--";
-            "(- (sqrt ?a) (sqrt ?b))" =>
-            "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
-
-        // Identity
-        rewrite!("+-inverses";
-            "(- ?a ?a)" => "0"),
-
-        // Identity
-        rewrite!("+-rgt-identity";
-            "(+ ?a 0)" => "?a"),
-        rewrite!("+-lft-identity";
-            "(+ 0 ?a)" => "?a"),
-
-        // Associativity
-        rewrite!("associate--l+";
-            "(- (+ ?a ?b) ?c)" => "(+ ?a (- ?b ?c))"),
-        rewrite!("associate--r+";
-            "(- ?a (+ ?b ?c))" => "(- (- ?a ?b) ?c)")
-    ]
+fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
+    my_rules::my_rules()
+    // herbie_rules::herbie_rules() 
+    // my_rules::my_rules()
 }
 
-// build egraph
+// build egraph — explanations disabled so ConstantFold::modify can call union() directly
 #[no_mangle]
 pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
     let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
-    let mut egraph = EGraph::new(()).with_explanations_enabled();
+    let mut egraph = EGraph::new(ConstantFold);
     let root = egraph.add_expr(&expr);
     Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
 }
 
 fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
     match reason {
-        Some(StopReason::Saturated)        => 0,
-        Some(StopReason::IterationLimit(_))=> 1,
-        Some(StopReason::NodeLimit(_))     => 2,
-        Some(StopReason::TimeLimit(_))     => 3,
-        _                                  => 4,
+        Some(StopReason::Saturated)         => 0,
+        Some(StopReason::IterationLimit(_)) => 1,
+        Some(StopReason::NodeLimit(_))      => 2,
+        Some(StopReason::TimeLimit(_))      => 3,
+        _                                   => 4,
     }
 }
 
-// apply rewrite rules with default limits
+// node_limit=4000 matches Herbie's *node-limit* (herbie/src/config.rkt)
+// no iter_limit — Herbie uses unlimited iterations, relies on node_limit + BackoffScheduler
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
     let expr = eg.egraph.id_to_expr(eg.root);
     let runner = Runner::default()
+        .with_node_limit(4000)
         .with_egraph(eg.egraph.clone())
         .with_expr(&expr)
         .run(&make_rules());
@@ -115,7 +141,6 @@ pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
 }
 
 // free the CString returned by egraph_extract
-// mirrors egraph_destroy but for the extracted string allocation
 #[no_mangle]
 pub extern "C" fn egraph_free_string(ptr: *mut c_char) {
     if !ptr.is_null() {
@@ -134,45 +159,36 @@ pub extern "C" fn egraph_destroy(ptr: *mut EGraphWithRoot) {
 // ==================== UTILITY FUNCTIONS ====================
 // e-graph interactions — herbie/egg-herbie/src/lib.rs
 
-// total number of e-classes in the e-graph
 #[no_mangle]
 pub extern "C" fn egraph_size(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     eg.egraph.number_of_classes() as u32
 }
 
-// number of equivalent e-nodes in the e-class with the given id
 #[no_mangle]
 pub extern "C" fn egraph_eclass_size(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
     let eg = unsafe { &*ptr };
     eg.egraph[Id::from(id as usize)].nodes.len() as u32
 }
 
-// canonical id for a given id (union-find lookup)
 #[no_mangle]
 pub extern "C" fn egraph_find(ptr: *mut EGraphWithRoot, id: u32) -> u32 {
     let eg = unsafe { &*ptr };
-    let canon_id = eg.egraph.find(Id::from(id as usize));
-    usize::from(canon_id) as u32
+    usize::from(eg.egraph.find(Id::from(id as usize))) as u32
 }
 
-// id of the root e-class
 #[no_mangle]
 pub extern "C" fn egraph_root_id(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     usize::from(eg.root) as u32
 }
 
-// total unique enodes across all eclasses (memo.len())
-// distinct from egraph_size() which returns number_of_classes()
 #[no_mangle]
 pub extern "C" fn egraph_total_size(ptr: *mut EGraphWithRoot) -> u32 {
     let eg = unsafe { &*ptr };
     eg.egraph.total_size() as u32
 }
 
-// check if an s-expression string is present in the egraph after saturation
-// returns the eclass id if found, u32::MAX if not found
 #[no_mangle]
 pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char) -> u32 {
     let eg = unsafe { &*ptr };
@@ -187,8 +203,6 @@ pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_c
     }
 }
 
-// pretty-printed version of egraph_extract — use width to control line breaks
-// free via egraph_free_string
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
@@ -196,7 +210,6 @@ pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) ->
     CString::new(best.pretty(width as usize)).unwrap().into_raw()
 }
 
-// get the s-expression for a given eclass id
 #[no_mangle]
 pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
@@ -204,43 +217,36 @@ pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c
     CString::new(expr.to_string()).unwrap().into_raw()
 }
 
-// Ask the E-Graph to explain how it transformed expr1 into expr2
-// requires egraph_saturate! to have been called first
+// returns all enodes inside a given eclass as s-expr's
+// egg stores enodes in egraph[id].nodes as a Vec<MathLang>
 #[no_mangle]
-pub extern "C" fn egraph_explain_equivalence(
-    ptr: *mut EGraphWithRoot, 
-    expr1_ptr: *const c_char, 
-    expr2_ptr: *const c_char
-) -> *mut c_char {
-    let eg = unsafe { &mut *ptr };
+pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    let eclass_id = Id::from(id as usize);
+    let eclass = &eg.egraph[eclass_id];
+    let mut result = String::new();
     
-    let expr1_str = unsafe { CStr::from_ptr(expr1_ptr) }.to_str().unwrap();
-    let expr2_str = unsafe { CStr::from_ptr(expr2_ptr) }.to_str().unwrap();
-    
-    let expr1: RecExpr<MathLang> = match expr1_str.parse() {
-        Ok(e) => e,
-        Err(_) => return CString::new("Error: Failed to parse expr1").unwrap().into_raw(),
-    };
-    let expr2: RecExpr<MathLang> = match expr2_str.parse() {
-        Ok(e) => e,
-        Err(_) => return CString::new("Error: Failed to parse expr2").unwrap().into_raw(),
-    };
-    
-    // use lookup_expr 
-    let id1 = match eg.egraph.lookup_expr(&expr1) {
-        Some(id) => id,
-        None     => return CString::new("Error: expr1 not found in egraph after saturation").unwrap().into_raw(),
-    };
-    let id2 = match eg.egraph.lookup_expr(&expr2) {
-        Some(id) => id,
-        None     => return CString::new("Error: expr2 not found in egraph after saturation").unwrap().into_raw(),
-    };
-    
-    // verify both are in the same eclass before generating proof
-    if eg.egraph.find(id1) != eg.egraph.find(id2) {
-        return CString::new("Error: Expressions are not equivalent — not in the same eclass").unwrap().into_raw();
+    // 1. Create the real Extractor ONCE up here!
+    let mut extractor = Extractor::new(&eg.egraph, AstSize);
+
+    for enode in &eclass.nodes {
+        let s = format!("{}", enode);
+        let children: Vec<String> = enode.children()
+            .iter()
+            .map(|child_id| {
+                // egg-0.11.0\src\extract.rs
+                let (_, child_expr) = extractor.find_best(*child_id);
+                child_expr.to_string()
+            })
+            .collect();
+            
+        let full = if children.is_empty() {
+            s
+        } else {
+            format!("({} {})", s, children.join(" "))
+        };
+        result.push_str(&full);
+        result.push('\n');
     }
-    
-    let mut explanation = eg.egraph.explain_equivalence(&expr1, &expr2);
-    CString::new(explanation.get_flat_string()).unwrap().into_raw()
+    CString::new(result).unwrap().into_raw()
 }
