@@ -15,7 +15,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        optimize_expr, from_sexpr, to_sexpr,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
-       egraph_eclass_enodes,
+       egraph_eclass_enodes, egraph_dump_dot,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -113,6 +113,16 @@ function egraph_eclass_enodes(ptr::Ptr{Cvoid}, id::Integer)::Vector{String}
     result = unsafe_string(raw)
     ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
     filter(!isempty, split(result, "\n"))
+end
+
+"""
+    egraph_dump_dot(ptr::Ptr{Cvoid}, path::String)
+
+    Dump the egraph to a .dot file for visualization.
+    Open with GraphViz or paste into https://dreampuf.github.io/GraphvizOnline
+"""
+function egraph_dump_dot(ptr::Ptr{Cvoid}, path::String)
+    ccall((:egraph_dump_dot, LIBPATH), Cvoid, (Ptr{Cvoid}, Cstring), ptr, path)
 end
 
 end

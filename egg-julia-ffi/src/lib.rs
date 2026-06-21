@@ -250,3 +250,12 @@ pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mu
     }
     CString::new(result).unwrap().into_raw()
 }
+
+// dump egraph to a .dot file for visualization
+// egg/src/dot.rs
+#[no_mangle]
+pub extern "C" fn egraph_dump_dot(ptr: *mut EGraphWithRoot, path_ptr: *const c_char) {
+    let eg = unsafe { &*ptr };
+    let path = unsafe { CStr::from_ptr(path_ptr) }.to_str().unwrap();
+    eg.egraph.dot().to_dot(path).unwrap();
+}
