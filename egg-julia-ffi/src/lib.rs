@@ -83,7 +83,7 @@ pub struct EGraphWithRoot {
 }
 
 fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
-    my_rules::my_rules()
+    herbie_rules::herbie_rules() 
     // herbie_rules::herbie_rules() 
     // my_rules::my_rules()
 }
