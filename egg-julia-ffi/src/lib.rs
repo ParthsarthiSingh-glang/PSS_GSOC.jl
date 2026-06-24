@@ -27,6 +27,7 @@ define_language! {
         "round" = Round(Id),
         "log"   = Log(Id),
         "cbrt"  = Cbrt(Id),
+        "rep"   = Rep([Id; 3]),
 
         // leaves
         Num(Constant),
@@ -83,9 +84,34 @@ pub struct EGraphWithRoot {
 }
 
 fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
-    herbie_rules::herbie_rules() 
-    // herbie_rules::herbie_rules() 
-    // my_rules::my_rules()
+    herbie_rules::herbie_rules()
+}
+
+fn rep_removal_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
+    vec![
+        rewrite!("remove-rep"; "(rep ?a ?b ?c)" => "(/ ?a ?b)"),
+    ]
+}
+
+// // Egg Implementation of AstSize()
+// pub struct AstSize;
+// impl<L: Language> CostFunction<L> for AstSize {
+//     type Cost = usize;
+//     fn cost<C: FnMut(Id) -> usize>(&mut self, enode: &L, mut costs: C) -> usize {
+//         enode.fold(1, |sum, id| sum.saturating_add(costs(id)))
+//     }
+// }
+
+struct AstWithRep;
+impl CostFunction<MathLang> for AstWithRep {
+    type Cost = usize;
+    fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> Self::Cost
+    where C: FnMut(Id) -> Self::Cost {
+        match enode {
+            MathLang::Rep(_) => usize::MAX, // avoid rep enodes
+            _ => enode.fold(1, |sum, id| usize::saturating_add(sum, costs(id))), // AstSize()
+        }
+    }
 }
 
 // build egraph — explanations disabled so ConstantFold::modify can call union() directly
@@ -119,9 +145,18 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
         .with_egraph(eg.egraph.clone())
         .with_expr(&expr)
         .run(&make_rules());
-    eg.stop_reason = stop_reason_to_u8(&runner.stop_reason);
-    eg.root        = runner.roots[0];
-    eg.egraph      = runner.egraph;
+    let stop = stop_reason_to_u8(&runner.stop_reason);
+    let root = runner.roots[0];
+    let mut egraph = runner.egraph;
+    // dont consider rep rules in future results
+    for rule in rep_removal_rules() {
+        let matches = rule.search(&egraph);
+        rule.apply(&mut egraph, &matches);
+    }
+    egraph.rebuild();
+    eg.stop_reason = stop;
+    eg.root        = egraph.find(root);
+    eg.egraph      = egraph;
 }
 
 // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
@@ -136,7 +171,7 @@ pub extern "C" fn egraph_stop_reason(ptr: *mut EGraphWithRoot) -> u8 {
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstWithRep).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
 }
 
@@ -206,7 +241,7 @@ pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_c
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    let (_, best) = Extractor::new(&eg.egraph, AstSize).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstWithRep).find_best(eg.root);
     CString::new(best.pretty(width as usize)).unwrap().into_raw()
 }
 
@@ -227,9 +262,12 @@ pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mu
     let mut result = String::new();
     
     // 1. Create the real Extractor ONCE up here!
-    let mut extractor = Extractor::new(&eg.egraph, AstSize);
+    let mut extractor = Extractor::new(&eg.egraph, AstWithRep);
 
     for enode in &eclass.nodes {
+        if matches!(enode, MathLang::Rep(_)) {
+            continue;
+        }
         let s = format!("{}", enode);
         let children: Vec<String> = enode.children()
             .iter()

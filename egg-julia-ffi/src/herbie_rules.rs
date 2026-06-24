@@ -501,8 +501,8 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 
     // sqrt rationalization — plain / (without sound-/ guard)
     // sound-/ version skipped: sampling rejects NaN/Inf naturally
-    rewrite!("flip--"; "(- (sqrt ?a) (sqrt ?b))" => "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
-    rewrite!("flip-+"; "(+ (sqrt ?a) (sqrt ?b))" => "(/ (- ?a ?b) (- (sqrt ?a) (sqrt ?b)))"),
+    rewrite!("flip--"; "(- (sqrt ?a) (sqrt ?b))" => "(rep (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)) (- (sqrt ?a) (sqrt ?b)))"),
+    rewrite!("flip-+"; "(+ (sqrt ?a) (sqrt ?b))" => "(rep (- ?a ?b) (- (sqrt ?a) (sqrt ?b)) (+ (sqrt ?a) (sqrt ?b)))"),
 
     // please look into these : 
     rewrite!("cos-neg-rev"; "(cos ?x)" => "(cos (neg ?x))"),
