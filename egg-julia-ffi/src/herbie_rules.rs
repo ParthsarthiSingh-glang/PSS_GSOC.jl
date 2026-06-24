@@ -499,6 +499,11 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 
     rewrite!("cos-sum-rev"; "(- (* (cos ?x) (cos ?y)) (* (sin ?x) (sin ?y)))" => "(cos (+ ?x ?y))"),
 
+    // sqrt rationalization — plain / (without sound-/ guard)
+    // sound-/ version skipped: sampling rejects NaN/Inf naturally
+    rewrite!("flip--"; "(- (sqrt ?a) (sqrt ?b))" => "(/ (- ?a ?b) (+ (sqrt ?a) (sqrt ?b)))"),
+    rewrite!("flip-+"; "(+ (sqrt ?a) (sqrt ?b))" => "(/ (- ?a ?b) (- (sqrt ?a) (sqrt ?b)))"),
+
     // please look into these : 
     rewrite!("cos-neg-rev"; "(cos ?x)" => "(cos (neg ?x))"),
     rewrite!("cos-fabs-rev"; "(cos ?x)" => "(cos (fabs ?x))"),
