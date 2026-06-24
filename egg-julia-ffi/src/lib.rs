@@ -108,8 +108,9 @@ impl CostFunction<MathLang> for AstWithRep {
     fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> Self::Cost
     where C: FnMut(Id) -> Self::Cost {
         match enode {
-            MathLang::Rep(_) => usize::MAX, // avoid rep enodes
-            _ => enode.fold(1, |sum, id| usize::saturating_add(sum, costs(id))), // AstSize()
+            MathLang::Rep(_) => usize::MAX, // rep node 
+            _ => enode.fold(1, |sum, id| usize::saturating_add(sum, costs(id))),// Astsize()
+            // please look into the costs of sqrt,sinh,cosh,etc.
         }
     }
 }
@@ -268,16 +269,15 @@ pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mu
         if matches!(enode, MathLang::Rep(_)) {
             continue;
         }
+        // show operator with raw child eclass ids
         let s = format!("{}", enode);
         let children: Vec<String> = enode.children()
             .iter()
             .map(|child_id| {
-                // egg-0.11.0\src\extract.rs
                 let (_, child_expr) = extractor.find_best(*child_id);
                 child_expr.to_string()
             })
             .collect();
-            
         let full = if children.is_empty() {
             s
         } else {
