@@ -490,7 +490,6 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("sinh-neg-rev"; "(neg (sinh ?x))" => "(sinh (neg ?x))"),
     rewrite!("sum-sinh-rev"; "(* 2 (* (sinh (/ (+ ?x ?y) 2)) (cosh (/ (- ?x ?y) 2))))" => "(+ (sinh ?x) (sinh ?y))"),
     rewrite!("tanh-atanh"; "(tanh (atanh ?x))" => "?x"),
-    rewrite!("tanh-acosh"; "(tanh (acosh ?x))" => "(/ (sqrt (- (* ?x ?x) 1)) ?x)"),
     rewrite!("acosh-2-rev"; "(* 2 (acosh ?x))" => "(acosh (- (* 2 (* ?x ?x)) 1))"),
     rewrite!("atanh-0"; "(atanh 0)" => "0"),
 
