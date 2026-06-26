@@ -76,6 +76,7 @@ end
         egraph_saturate!(ptr)
 
         n_classes = egraph_size(ptr)
+        total_enodes = sum(length(egraph_eclass_enodes(ptr, id)) for id in 0:(n_classes - 1))
         seen = Dict{String, Int}()
 
         for id in 0:(n_classes - 1)
@@ -91,7 +92,7 @@ end
 
         egraph_destroy(ptr)
 
-        @info "[$label] errors=$(length(seen))"
+        @info "[$label] total_enodes=$total_enodes, errors=$(length(seen))"
         for (msg, count) in sort(collect(seen), by = x -> -x[2])
             println("    [×$count]  $msg")
         end

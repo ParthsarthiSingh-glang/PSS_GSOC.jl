@@ -5,23 +5,10 @@ using SymbolicUtils: BSImpl, MData
 
 include("rules.jl")
 
-# to_sexpr: Symbolics.Num → egg s-expression string
-#
-# Symbolics stores arithmetic as AddMul nodes — SymbolicUtils/src/types.jl
-#   ADD: coeff + sum(dict[term] * term)
-#   MUL: coeff * prod(term^exp)
-#
-# We read coeff/dict directly to emit (- a b) and (neg a)
-# matching Herbie rule patterns — herbie/src/core/rules.rkt
-
-# Rational(p,0) is Julia's exact-arithmetic infinity — egg has no such literal.
 struct ExactInfinityError <: Exception end
 
-# before we used string() which worked fine for Int , but not for rational . 
-# ex. string(3//7) -> "3//7" (egg can't parse) vs "(/ 3 7)" (egg can parse) [rational_fuzz]
 function _num_to_sexpr(n)::String
     if n isa Rational
-        # zero denominator — exact infinity, egg has no such literal, skip
         denominator(n) == 0 && throw(ExactInfinityError())
         denominator(n) == 1 && return string(numerator(n))
         return "(/ $(numerator(n)) $(denominator(n)))"
@@ -32,11 +19,8 @@ end
 function to_sexpr(expr)::String
     expr = Symbolics.unwrap(expr)
 
-    # Numeric leaf: Julia Number (Int, Float64, Rational, etc.)
-    # Must be checked before iscall since iscall only works on BSImpl.Type.
     expr isa Number && return _num_to_sexpr(expr)
 
-    # from printing.jl : BSImpl.Const(; val) get covered in parens {not egg parsable}
     if SymbolicUtils.isconst(expr)
         val = SymbolicUtils.unwrap_const(expr)
         val isa Number && return _num_to_sexpr(val)
@@ -56,10 +40,6 @@ function to_sexpr(expr)::String
     end
 end
 
-# fold a list of s-expr term strings into nested binary form
-# herbie/src/syntax/sugar.rkt
-# egg/MathLang's Add/Mul/Sub are strictly binary (Add([Id; 2])) 
-# N-ary (op a b c ...) must be folded to binary before crossing the FFI boundary and before reaching egg-herbie.
 function _fold_to_binary(op::String, terms::Vector{String})::String
     length(terms) == 1 && return terms[1]
     return "($op $(terms[1]) $(_fold_to_binary(op, terms[2:end])))"
@@ -69,14 +49,12 @@ function _mul_to_sexpr(expr)::String
     coeff = MData.variant_getfield(expr, BSImpl.AddMul, :coeff)
     dict = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
 
-    # coeff=-1, single dict term → (neg term)
     if coeff == -1 && length(dict) == 1
         term, exp = only(dict)
         inner = exp == 1 ? to_sexpr(term) : to_sexpr(term ^ exp)
         return "(neg $inner)"
     end
 
-    # fold coeff (if != 1) and all dict factors into nested binary (* ...)
     factors = String[]
     coeff == 1 || push!(factors, _num_to_sexpr(coeff))
     for (term, exp) in dict
@@ -86,10 +64,6 @@ function _mul_to_sexpr(expr)::String
     return _fold_to_binary("*", factors)
 end
 
-# emit (+ c x) for all cases — constant first, consistent ordering
-# Case 1: coeff=0, one pos + one neg dict term  →  (- x y)
-# Case 2: coeff<0, one pos dict term            →  (+ -c x)  ← fixed: was (- x c)
-# Case 3: coeff>0, one neg dict term            →  (- c x)
 function _add_to_sexpr(expr)::String
     coeff = MData.variant_getfield(expr, BSImpl.AddMul, :coeff)
     dict = MData.variant_getfield(expr, BSImpl.AddMul, :dict)
@@ -104,7 +78,6 @@ function _add_to_sexpr(expr)::String
         return "(- $(_term_str(pos[1]...)) $(_term_str(neg[1]...)))"
     end
 
-    # fixed
     if coeff < 0 && length(pos) == 1 && isempty(neg)
         return "(+ $(_num_to_sexpr(coeff)) $(_term_str(pos[1]...)))"
     end
@@ -113,7 +86,6 @@ function _add_to_sexpr(expr)::String
         return "(- $(_num_to_sexpr(coeff)) $(_term_str(neg[1]...)))"
     end
 
-    # coeff first:sorted_arguments places numeric constants before symbolic terms
     terms = String[]
     if !iszero(coeff)
         coeff > 0 ? push!(terms, _num_to_sexpr(coeff)) :
@@ -129,8 +101,6 @@ function _add_to_sexpr(expr)::String
     return _fold_to_binary("+", terms)
 end
 
-# returns either a String (leaf) or Tuple{String, Vector{Any}} (compound node)
-# recursive implementation
 function parse_sexpr(s::AbstractString)
     s = String(strip(s))
     if startswith(s, "(")
@@ -144,9 +114,6 @@ function parse_sexpr(s::AbstractString)
     end
 end
 
-# totoken: split s-expression into tokens
-# "+ (sqrt x) 1" → ["+", "(sqrt x)", "1"]
-# AbstractString solves the MethodError
 function totoken(s::AbstractString)::Vector{String}
     tokens = String[]
     depth = 0
@@ -165,7 +132,6 @@ function totoken(s::AbstractString)::Vector{String}
     return tokens
 end
 
-# uses Julia Base parse(Rational{T}, s) from rational.jl 
 function try_parse_rational(s::String)::Union{Rational{Int}, Nothing}
     try
         parse(Rational{Int}, s)
@@ -174,33 +140,40 @@ function try_parse_rational(s::String)::Union{Rational{Int}, Nothing}
     end
 end
 
-# build_expr: nested structure → Symbolics.Num
+function _leaf_to_number(tree)::Union{Number, Nothing}
+    tree isa String || return nothing
+    vi = tryparse(Int, tree)
+    vi !== nothing && return vi
+    vr = try_parse_rational(tree)
+    vr !== nothing && return vr
+    vf = tryparse(Float64, tree)
+    vf !== nothing && return vf
+    return nothing
+end
+
 function build_expr(tree, vars::Dict{String, Num})::Num
-    if tree isa String #leaf node
-        # try Int
-        vi = tryparse(Int, tree)
-        vi !== nothing && return Num(vi)
-        # try Rational
-        vr = try_parse_rational(tree)
-        vr !== nothing && return Num(vr)
-        # try Float64
-        vf = tryparse(Float64, tree)
-        vf !== nothing && return Num(vf)
+    if tree isa String
+        n = _leaf_to_number(tree)
+        n !== nothing && return Num(n)
         return vars[tree]
     end
     op, args = tree
-    # neg is a special case 
     if op == "neg"
         return -build_expr(args[1], vars)
     end
+    if op == "pow" || op == "^"
+        base_n = _leaf_to_number(args[1])
+        exp_n  = _leaf_to_number(args[2])
+        if base_n isa Integer && exp_n isa Integer && exp_n < 0
+            return Num(float(base_n)^exp_n)
+        end
+        return build_expr(args[1], vars) ^ build_expr(args[2], vars)
+    end
     f = OP_MAP[op]
     children = [build_expr(a, vars) for a in args]
-    # Symbolics.jl/src/Symbolics.jl: VartypeT = @load_preference("vartype", "SymReal")
-    # safer to deal with SafeReal/TreeReal
     return Num(TermInterface.maketerm(Symbolics.SymbolicT, f, Symbolics.unwrap.(children), nothing))
 end
 
-# from_sexpr
 function from_sexpr(s::String, vars::Dict{String, Num})::Num
     build_expr(parse_sexpr(s), vars)
 end
