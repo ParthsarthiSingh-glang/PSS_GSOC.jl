@@ -165,12 +165,24 @@ function totoken(s::AbstractString)::Vector{String}
     return tokens
 end
 
+# uses Julia Base parse(Rational{T}, s) from rational.jl 
+function try_parse_rational(s::String)::Union{Rational{Int}, Nothing}
+    try
+        parse(Rational{Int}, s)
+    catch
+        nothing
+    end
+end
+
 # build_expr: nested structure → Symbolics.Num
 function build_expr(tree, vars::Dict{String, Num})::Num
     if tree isa String #leaf node
         # try Int
         vi = tryparse(Int, tree)
         vi !== nothing && return Num(vi)
+        # try Rational
+        vr = try_parse_rational(tree)
+        vr !== nothing && return Num(vr)
         # try Float64
         vf = tryparse(Float64, tree)
         vf !== nothing && return Num(vf)
