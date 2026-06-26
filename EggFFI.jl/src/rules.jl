@@ -16,6 +16,7 @@ const OP_MAP = Dict{String, Any}(
     "*" => (*),
     "/" => (/),
     "^" => (^),
+    "pow" => (^),
     "atan2" => atan,
     "hypot" => hypot,
     "max" => max,
