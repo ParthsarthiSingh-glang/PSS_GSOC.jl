@@ -79,7 +79,7 @@ function _add_to_sexpr(expr)::String
     end
 
     if coeff < 0 && length(pos) == 1 && isempty(neg)
-        return "(+ $(_num_to_sexpr(coeff)) $(_term_str(pos[1]...)))"
+        return "(- $(_term_str(pos[1]...)) $(_num_to_sexpr(abs(coeff))))"
     end
 
     if coeff > 0 && isempty(pos) && length(neg) == 1
