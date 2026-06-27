@@ -17,6 +17,16 @@ cases = [
     (-3,  -2),
 ]
 
+# use set to get unique eclasses
+function canonical_eclass_ids(ptr)
+    n = egraph_size(ptr)
+    seen = Set{UInt32}()
+    for id in 0:(n - 1)
+        push!(seen, egraph_find(ptr, id))
+    end
+    return seen
+end
+
 @testset "egraph enode coverage — from_sexpr on all enodes" begin
     for (a, b) in cases
         if b == 0
@@ -33,11 +43,11 @@ cases = [
         ptr = egraph_create(to_sexpr(expr))
         egraph_saturate!(ptr)
 
-        n_classes = egraph_size(ptr)
+        ids = canonical_eclass_ids(ptr)
         missing_ops = Dict{String, Int}()
         ok = 0
 
-        for id in 0:(n_classes - 1)
+        for id in ids
             for enode in egraph_eclass_enodes(ptr, id)
                 try
                     from_sexpr(enode, vars)
@@ -53,7 +63,7 @@ cases = [
 
         egraph_destroy(ptr)
 
-        @info "[$label] ok=$ok, missing=$(missing_ops)"
+        @info "[$label] unique_eclasses=$(length(ids)) ok=$ok, missing=$(missing_ops)"
         @test isempty(missing_ops)
     end
 end
@@ -75,11 +85,11 @@ end
         ptr = egraph_create(to_sexpr(expr))
         egraph_saturate!(ptr)
 
-        n_classes = egraph_size(ptr)
-        total_enodes = sum(length(egraph_eclass_enodes(ptr, id)) for id in 0:(n_classes - 1))
+        ids = canonical_eclass_ids(ptr)
+        total_enodes = sum(length(egraph_eclass_enodes(ptr, id)) for id in ids)
         seen = Dict{String, Int}()
 
-        for id in 0:(n_classes - 1)
+        for id in ids
             for enode in egraph_eclass_enodes(ptr, id)
                 try
                     from_sexpr(enode, vars)
@@ -92,7 +102,7 @@ end
 
         egraph_destroy(ptr)
 
-        @info "[$label] total_enodes=$total_enodes, errors=$(length(seen))"
+        @info "[$label] unique_eclasses=$(length(ids)) total_enodes=$total_enodes, errors=$(length(seen))"
         for (msg, count) in sort(collect(seen), by = x -> -x[2])
             println("    [×$count]  $msg")
         end

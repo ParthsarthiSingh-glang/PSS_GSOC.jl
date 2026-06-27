@@ -16,6 +16,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
+       egraph_num_classes, egraph_get_eclasses,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -101,6 +102,17 @@ function egraph_contains(ptr::Ptr{Cvoid}, expr)::Union{UInt32, Nothing}
     s = to_sexpr(expr)
     raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, s)
     raw == typemax(UInt32) ? nothing : raw
+end
+
+function egraph_num_classes(ptr::Ptr{Cvoid})::UInt32
+    ccall((:egraph_num_classes, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
+end
+
+function egraph_get_eclasses(ptr::Ptr{Cvoid})::Vector{UInt32}
+    n = egraph_num_classes(ptr)
+    buf = Vector{UInt32}(undef, n)
+    ccall((:egraph_get_eclasses, LIBPATH), Cvoid, (Ptr{Cvoid}, Ptr{UInt32}), ptr, buf)
+    return buf
 end
 
 """

@@ -239,6 +239,34 @@ pub extern "C" fn egraph_contains(ptr: *mut EGraphWithRoot, expr_ptr: *const c_c
     }
 }
 
+// please look in this later : 
+// herbie/egg-herbie/src/lib.rs: egraph_get_eclasse
+#[no_mangle]
+pub extern "C" fn egraph_get_eclasses(ptr: *mut EGraphWithRoot, ids_ptr: *mut u32) {
+    let eg = unsafe { &*ptr };
+    let mut ids: Vec<u32> = eg.egraph
+        .classes()
+        .map(|c| usize::from(eg.egraph.find(c.id)) as u32)
+        .collect::<std::collections::HashSet<u32>>()
+        .into_iter()
+        .collect();
+    ids.sort();
+    for (i, id) in ids.iter().enumerate() {
+        unsafe { std::ptr::write(ids_ptr.offset(i as isize), *id) };
+    }
+}
+
+// number of true canonical eclasses after union-find merges
+#[no_mangle]
+pub extern "C" fn egraph_num_classes(ptr: *mut EGraphWithRoot) -> u32 {
+    let eg = unsafe { &*ptr };
+    eg.egraph
+        .classes()
+        .map(|c| eg.egraph.find(c.id))
+        .collect::<std::collections::HashSet<_>>()
+        .len() as u32
+}
+
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
