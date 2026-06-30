@@ -27,6 +27,9 @@ const OP_MAP = Dict{String, Any}(
     "log" => log,
     "copysign" => Base.copysign,
 
+    # Julia's rem(x, y, RoundNearest) , will keep it in further checking
+    "remainder" => (x, y) -> Base.rem(x, y, RoundNearest),
+
     # General Math — unary
     "sqrt" => sqrt,
     "cbrt" => cbrt,
