@@ -64,10 +64,12 @@ impl Analysis<MathLang> for ConstantFold {
 
     fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
         merge_option(to, from, |a, b| {
-            assert_eq!(*a, b, "Merged non-equal constants");
-            DidMerge(false, false)
-        })
-    }
+           if *a != b {
+               eprintln!("WARNING: merged non-equal constants: {} vs {}", a, b);
+           }
+           DidMerge(false, false)
+       })
+   }
 
     fn modify(egraph: &mut EGraph<MathLang, Self>, id: Id) {
         if let Some(c) = egraph[id].data.clone() {

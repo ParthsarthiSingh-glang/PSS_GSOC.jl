@@ -7,6 +7,12 @@ include("rules.jl")
 
 struct ExactInfinityError <: Exception end
 
+# FPCore named constant
+const NAMED_CONSTANTS = Dict{String, Float64}(
+    "PI" => Float64(pi),
+    "E"  => Float64(MathConstants.e),
+)
+
 function _num_to_sexpr(n)::String
     if n isa Rational
         denominator(n) == 0 && throw(ExactInfinityError())
@@ -155,6 +161,7 @@ function build_expr(tree, vars::Dict{String, Num})::Num
     if tree isa String
         n = _leaf_to_number(tree)
         n !== nothing && return Num(n)
+        haskey(NAMED_CONSTANTS, tree) && return Num(NAMED_CONSTANTS[tree])
         return vars[tree]
     end
     op, args = tree

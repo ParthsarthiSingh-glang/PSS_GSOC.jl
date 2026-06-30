@@ -242,7 +242,6 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("tan-PI/4"; "(tan (/ PI 4))" => "1"),
     rewrite!("tan-PI/3"; "(tan (/ PI 3))" => "(sqrt 3)"),
     rewrite!("tan-PI"; "(tan PI)" => "0"),
-    rewrite!("tan-+PI"; "(tan (+ ?x PI))" => "(tan ?x)"),
     rewrite!("hang-0p-tan"; "(/ (sin ?a) (+ 1 (cos ?a)))" => "(tan (/ ?a 2))"),
     rewrite!("hang-0m-tan"; "(/ (neg (sin ?a)) (+ 1 (cos ?a)))" => "(tan (/ (neg ?a) 2))"),
     rewrite!("hang-p0-tan"; "(/ (- 1 (cos ?a)) (sin ?a))" => "(tan (/ ?a 2))"),
@@ -515,6 +514,5 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("fp-cancel-sub-sign-inv"; "(- ?a (* ?b ?c))" => "(+ ?a (* (neg ?b) ?c))"),
     rewrite!("tan-+PI-rev"; "(tan ?x)" => "(tan (+ ?x PI))"),
 
-    // ~430 rules
     ]
 }
