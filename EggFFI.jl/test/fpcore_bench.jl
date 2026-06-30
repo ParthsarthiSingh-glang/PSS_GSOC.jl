@@ -265,10 +265,10 @@ bench_find_atanh = log((1 + x) / (1 - x))
 # ─────────────────────────────────────────────────────────────────────────────
 
 # L: fma_test1 (let x = 1 + t*2e-16, z = -1 - 2*t*2e-16; body = x*x + z)
-bench_fma_test1(t) = let xv = 1 + t*2e-16; zv = -1 - 2*t*2e-16; xv*xv + zv end
+bench_fma_test1 = let xv = 1 + t*2e-16; zv = -1 - 2*t*2e-16; xv*xv + zv end
 
 # L: fma_test2 (let x = 1.7e308; body = x*t - x)
-bench_fma_test2(t) = let xv = 1.7e308; xv*t - xv end
+bench_fma_test2 = let xv = 1.7e308; xv*t - xv end
 
 # ─────────────────────────────────────────────────────────────────────────────
 # numerics/kahan.fpcore (1 let-inlined)
