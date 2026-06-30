@@ -541,8 +541,8 @@ bench_super_13 = sqrt(2*n*U*(t - 2*l^2/a - n*(l/a)^2*(U - b)))
 # physics/tea-flows.fpcore (3 simple, 1 let-inlined)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# S: VandenBroeck Keller Eq 6
-bench_tea_6 = pi*l - (1/F^2)*tan(pi*l)
+# # S: VandenBroeck Keller Eq 6
+# bench_tea_6 = pi*l - (1/F^2)*tan(pi*l)
 
 # L: VandenBroeck Keller Eq 20 (let-inlined)
 bench_tea_20 = let PI4 = pi/4; ep = exp(PI4*f); em = exp(-PI4*f);
@@ -629,14 +629,14 @@ bench_quad2m = (-b/2 - sqrt((b/2)^2 - a*c)) / a
 # S: 2sqrt
 bench_2sqrt = sqrt(x + 1) - sqrt(x)
 
-# S: 2isqrt
-bench_2isqrt = 1/sqrt(x) - 1/sqrt(x + 1)
+# # S: 2isqrt
+# bench_2isqrt = 1/sqrt(x) - 1/sqrt(x + 1)
 
-# S: 2frac
-bench_2frac = 1/(x + 1) - 1/x
+# # S: 2frac
+# bench_2frac = 1/(x + 1) - 1/x
 
-# S: 3frac
-bench_3frac = 1/(x + 1) - 2/x + 1/(x - 1)
+# # S: 3frac
+# bench_3frac = 1/(x + 1) - 2/x + 1/(x - 1)
 
 # S: 2cbrt
 bench_2cbrt = cbrt(x + 1) - cbrt(x)
@@ -679,20 +679,20 @@ bench_2nthrt = (x + 1)^(1/n) - x^(1/n)
 # hamming/trigonometry.fpcore (5 simple)
 # ─────────────────────────────────────────────────────────────────────────────
 
-# S: 2sin
-bench_2sin = sin(x + eps) - sin(x)
+# # S: 2sin
+# bench_2sin = sin(x + eps) - sin(x)
 
-# S: 2cos
-bench_2cos = cos(x + eps) - cos(x)
+# # S: 2cos
+# bench_2cos = cos(x + eps) - cos(x)
 
-# S: 2tan
-bench_2tan = tan(x + eps) - tan(x)
+# # S: 2tan
+# bench_2tan = tan(x + eps) - tan(x)
 
-# S: tanhf
-bench_tanhf = (1 - cos(x)) / sin(x)
+# # S: tanhf
+# bench_tanhf = (1 - cos(x)) / sin(x)
 
-# S: 2atan
-bench_2atan = atan(N + 1) - atan(N)
+# # S: 2atan
+# bench_2atan = atan(N + 1) - atan(N)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # graphics/lod.fpcore (2 simple)

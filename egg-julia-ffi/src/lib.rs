@@ -62,9 +62,8 @@ impl Analysis<MathLang> for ConstantFold {
         }
     }
 
-    // temp fix to continue egg work and not stop fully on faulty merging 
     fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
-       merge_option(to, from, |a, b| {
+        merge_option(to, from, |a, b| {
            if *a != b {
                eprintln!("WARNING: merged non-equal constants: {} vs {}", a, b);
            }

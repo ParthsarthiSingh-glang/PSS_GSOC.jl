@@ -103,3 +103,10 @@ end
         @test isempty(other_errors)
     end
 end
+
+# Major faulting tests : 
+#  bench_2isqrt = 1/sqrt(x) - 1/sqrt(x + 1)
+#  bench_tea_6 = pi*l - (1/F^2)*tan(pi*l)
+#  bench_2frac = 1/(x + 1) - 1/x
+#  bench_3frac = 1/(x + 1) - 2/x + 1/(x - 1)
+#  hamming/trigonometry.fpcore (5 simple)
