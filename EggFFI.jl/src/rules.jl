@@ -25,6 +25,7 @@ const OP_MAP = Dict{String, Any}(
     "rem" => rem,
     "ldexp" => ldexp,
     "log" => log,
+    "copysign" => Base.copysign,
 
     # General Math — unary
     "sqrt" => sqrt,
