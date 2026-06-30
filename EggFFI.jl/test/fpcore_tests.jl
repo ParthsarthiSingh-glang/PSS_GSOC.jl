@@ -32,6 +32,7 @@ end
 
         ids = canonical_eclass_ids(ptr)
         missing_ops = Dict{String, Int}()
+        other_errors = Dict{String, Int}()
         ok = 0
 
         for id in ids
@@ -43,6 +44,9 @@ end
                     if e isa KeyError
                         key = string(e.key)
                         missing_ops[key] = get(missing_ops, key, 0) + 1
+                    else
+                        key = string(typeof(e))
+                        other_errors[key] = get(other_errors, key, 0) + 1
                     end
                 end
             end
@@ -50,8 +54,9 @@ end
 
         egraph_destroy(ptr)
 
-        @info "[$label] unique_eclasses=$(length(ids)) ok=$ok, missing=$(missing_ops)"
+        @info "[$label] unique_eclasses=$(length(ids)) ok=$ok, missing=$(missing_ops), other_errors=$(other_errors)"
         @test isempty(missing_ops)
+        @test isempty(other_errors)
     end
 end
 
@@ -65,6 +70,8 @@ end
 
         ids = canonical_eclass_ids(ptr)
         total_enodes = sum(length(egraph_eclass_enodes(ptr, id)) for id in ids)
+        missing_ops = Dict{String, Int}()
+        other_errors = Dict{String, Int}()
         seen = Dict{String, Int}()
 
         for id in ids
@@ -72,6 +79,13 @@ end
                 try
                     from_sexpr(enode, vars)
                 catch e
+                    if e isa KeyError
+                        key = string(e.key)
+                        missing_ops[key] = get(missing_ops, key, 0) + 1
+                    else
+                        key = string(typeof(e))
+                        other_errors[key] = get(other_errors, key, 0) + 1
+                    end
                     key = "$enode  →  $(typeof(e)): $(e)"
                     seen[key] = get(seen, key, 0) + 1
                 end
@@ -84,5 +98,8 @@ end
         for (msg, count) in sort(collect(seen), by = x -> -x[2])
             println("    [×$count]  $msg")
         end
+
+        @test isempty(missing_ops)
+        @test isempty(other_errors)
     end
 end
