@@ -108,3 +108,27 @@ end
         end
     end
 end
+
+@testset "egraph ConstantFold soundness — unsound flag per case" begin
+    for (a, b) in cases
+        if b == 0
+            expr = sqrt(x + a) - sqrt(x)
+        elseif a == 0
+            expr = sqrt(x) - sqrt(x + b)
+        else
+            expr = sqrt(x + a) - sqrt(x + b)
+        end
+
+        label = "a=$a,b=$b"
+
+        ptr = egraph_create(to_sexpr(expr))
+        egraph_saturate!(ptr)
+
+        unsound = ccall((:egraph_unsound, EggFFI.LIBPATH), Bool, (Ptr{Cvoid},), ptr)
+
+        egraph_destroy(ptr)
+
+        @info "[$label] unsound=$unsound"
+        @test !unsound
+    end
+end

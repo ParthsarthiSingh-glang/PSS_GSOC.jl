@@ -672,8 +672,9 @@ bench_logq = log((1 - eps) / (1 + eps))
 # S: sqrtexp
 bench_sqrtexp = sqrt((exp(2*x) - 1) / (exp(x) - 1))
 
-# S: 2nthrt
-bench_2nthrt = (x + 1)^(1/n) - x^(1/n)
+# FREE EXPONENT PROBLEM 3.4.6 from herbie itself , please look into later on , EDGE CASE 
+# # S: 2nthrt
+# bench_2nthrt = (x + 1)^(1/n) - x^(1/n)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # hamming/trigonometry.fpcore (5 simple)

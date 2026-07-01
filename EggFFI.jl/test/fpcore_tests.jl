@@ -110,3 +110,19 @@ end
 #  bench_2frac = 1/(x + 1) - 1/x
 #  bench_3frac = 1/(x + 1) - 2/x + 1/(x - 1)
 #  hamming/trigonometry.fpcore (5 simple)
+
+@testset "fpcore ConstantFold soundness — unsound flag per case" begin
+    for (name, expr) in cases_pairs
+        label = string(name)
+
+        ptr = egraph_create(to_sexpr(expr))
+        egraph_saturate!(ptr)
+
+        unsound = ccall((:egraph_unsound, EggFFI.LIBPATH), Bool, (Ptr{Cvoid},), ptr)
+
+        egraph_destroy(ptr)
+
+        @info "[$label] unsound=$unsound"
+        @test !unsound
+    end
+end
