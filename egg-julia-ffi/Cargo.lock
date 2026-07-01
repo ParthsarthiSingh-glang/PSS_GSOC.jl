@@ -63,6 +63,7 @@ name = "egg-julia-ffi"
 version = "0.1.0"
 dependencies = [
  "egg",
+ "log",
  "num-bigint",
  "num-rational",
  "num-traits",

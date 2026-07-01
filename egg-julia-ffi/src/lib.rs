@@ -4,9 +4,12 @@ mod herbie_rules;
 mod my_rules;
 
 use egg::*;
+use num_bigint::BigInt;
+use num_rational::Ratio;
 use num_traits::Zero;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub type Constant = num_rational::BigRational;
 
@@ -40,41 +43,103 @@ define_language! {
 
 // ConstantFold
 // explanations disabled in egraph_create because modify() calls union() directly
-#[derive(Default, Clone)]
-pub struct ConstantFold;
+// fully similar to herbie actual ConstantFold in src/math.rs
+pub struct ConstantFold {
+    pub unsound: AtomicBool,
+    pub max_abs_exponent: Ratio<BigInt>,
+    pub prune: bool,
+}
+
+impl Clone for ConstantFold {
+    fn clone(&self) -> Self {
+        let unsound = AtomicBool::new(self.unsound.load(Ordering::SeqCst));
+        Self {
+            unsound,
+            max_abs_exponent: self.max_abs_exponent.clone(),
+            prune: self.prune,
+        }
+    }
+}
+
+impl Default for ConstantFold {
+    fn default() -> Self {
+        Self {
+            unsound: AtomicBool::new(false),
+            max_abs_exponent: Ratio::new(BigInt::from(16), BigInt::from(1)),
+            prune: true,
+        }
+    }
+}
 
 impl Analysis<MathLang> for ConstantFold {
-    type Data = Option<Constant>;
+    type Data = Option<(Constant, (PatternAst<MathLang>, Subst))>;
 
     fn make(egraph: &mut EGraph<MathLang, Self>, enode: &MathLang, _id: Id) -> Self::Data {
-        let x = |i: &Id| egraph[*i].data.as_ref().cloned();
-        match enode {
-            MathLang::Num(c)      => Some(c.clone()),
-            MathLang::Neg(a)      => Some(-x(a)?),
-            MathLang::Add([a, b]) => Some(x(a)? + x(b)?),
-            MathLang::Sub([a, b]) => Some(x(a)? - x(b)?),
-            MathLang::Mul([a, b]) => Some(x(a)? * x(b)?),
+        let x = |i: &Id| egraph[*i].data.as_ref().map(|d| d.0.clone());
+        let value = match enode {
+            MathLang::Num(c)      => c.clone(),
+            MathLang::Neg(a)      => -x(a)?,
+            MathLang::Add([a, b]) => x(a)? + x(b)?,
+            MathLang::Sub([a, b]) => x(a)? - x(b)?,
+            MathLang::Mul([a, b]) => x(a)? * x(b)?,
             MathLang::Div([a, b]) => {
                 let denom = x(b)?;
-                if denom.is_zero() { None } else { Some(x(a)? / denom) }
+                if denom.is_zero() { return None; }
+                x(a)? / denom
             }
-            _ => None,
-        }
+            _ => return None,
+        };
+
+        let mut pattern: PatternAst<MathLang> = Default::default();
+        let mut var_counter = 0;
+        let mut subst: Subst = Default::default();
+        enode.for_each(|child| {
+            if let Some(d) = egraph[child].data.as_ref() {
+                pattern.add(ENodeOrVar::ENode(MathLang::Num(d.0.clone())));
+            } else {
+                let var = ("?".to_string() + &var_counter.to_string()).parse().unwrap();
+                pattern.add(ENodeOrVar::Var(var));
+                subst.insert(var, child);
+                var_counter += 1;
+            }
+        });
+        let mut counter = 0;
+        let mut head = enode.clone();
+        head.update_children(|_child| {
+            let res = Id::from(counter);
+            counter += 1;
+            res
+        });
+        pattern.add(ENodeOrVar::ENode(head));
+
+        Some((value, (pattern, subst)))
     }
 
     fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
-        merge_option(to, from, |a, b| {
-           if *a != b {
-               eprintln!("WARNING: merged non-equal constants: {} vs {}", a, b);
-           }
-           DidMerge(false, false)
-       })
-   }
+        match (&to, from) {
+            (None, None) => DidMerge(false, false),
+            (Some(_), None) => DidMerge(false, true),
+            (None, Some(c)) => {
+                *to = Some(c);
+                DidMerge(true, false)
+            }
+            (Some(a), Some(ref b)) => {
+                if a.0 != b.0 && !self.unsound.swap(true, Ordering::SeqCst) {
+                    log::warn!("Bad merge detected: {} != {}", a.0, b.0);
+                }
+                DidMerge(false, false)
+            }
+        }
+    }
 
     fn modify(egraph: &mut EGraph<MathLang, Self>, id: Id) {
-        if let Some(c) = egraph[id].data.clone() {
-            let added = egraph.add(MathLang::Num(c));
-            egraph.union(id, added);
+        if let Some((c, (pat, subst))) = egraph[id].data.clone() {
+            egraph.union_instantiations(
+                &pat,
+                &format!("{}", c).parse().unwrap(),
+                &subst,
+                "metadata-eval".to_string(),
+            );
         }
     }
 }
@@ -122,7 +187,7 @@ impl CostFunction<MathLang> for AstWithRep {
 pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
     let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
-    let mut egraph = EGraph::new(ConstantFold);
+    let mut egraph = EGraph::new(ConstantFold::default());
     let root = egraph.add_expr(&expr);
     Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
 }
@@ -267,6 +332,14 @@ pub extern "C" fn egraph_num_classes(ptr: *mut EGraphWithRoot) -> u32 {
         .map(|c| eg.egraph.find(c.id))
         .collect::<std::collections::HashSet<_>>()
         .len() as u32
+}
+
+// true if ConstantFold::merge ever saw two conflicting constant values
+// for the same eclass during saturation (see ConstantFold::unsound)
+#[no_mangle]
+pub extern "C" fn egraph_unsound(ptr: *mut EGraphWithRoot) -> bool {
+    let eg = unsafe { &*ptr };
+    eg.egraph.analysis.unsound.load(Ordering::SeqCst)
 }
 
 #[no_mangle]
