@@ -416,9 +416,9 @@ bench_midpoint = let dlambda = lambda1 - lambda2;
     Bx = cos(phi2)*cos(dlambda); By = cos(phi2)*sin(dlambda);
     atan(By, cos(phi1) + Bx) end
 
-# L: Destination given bearing (let-inlined)
-bench_destination = let phi2v = asin(sin(phi1)*cos(d) + cos(phi1)*sin(d)*cos(theta));
-    atan(sin(theta)*sin(d)*cos(phi1), cos(d) - sin(phi1)*sin(phi2v)) end
+# # L: Destination given bearing (let-inlined)
+# bench_destination = let phi2v = asin(sin(phi1)*cos(d) + cos(phi1)*sin(d)*cos(theta));
+#     atan(sin(theta)*sin(d)*cos(phi1), cos(d) - sin(phi1)*sin(phi2v)) end
 
 # ─────────────────────────────────────────────────────────────────────────────
 # mathematics/gui.fpcore (4 simple, 9 let-inlined)
@@ -672,9 +672,8 @@ bench_logq = log((1 - eps) / (1 + eps))
 # S: sqrtexp
 bench_sqrtexp = sqrt((exp(2*x) - 1) / (exp(x) - 1))
 
-# FREE EXPONENT PROBLEM 3.4.6 from herbie itself , please look into later on , EDGE CASE 
-# # S: 2nthrt
-# bench_2nthrt = (x + 1)^(1/n) - x^(1/n)
+# S: 2nthrt
+bench_2nthrt = (x + 1)^(1/n) - x^(1/n)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # hamming/trigonometry.fpcore (5 simple)

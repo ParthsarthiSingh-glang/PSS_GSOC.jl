@@ -188,7 +188,10 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("pow-prod-down"; "(* (pow ?b ?a) (pow ?c ?a))" => "(pow (* ?b ?c) ?a)"),
     rewrite!("pow-prod-up"; "(* (pow ?a ?b) (pow ?a ?c))" => "(pow ?a (+ ?b ?c))"),
     rewrite!("pow-flip"; "(/ 1 (pow ?a ?b))" => "(pow ?a (neg ?b))"),
+    rewrite!("pow-plus-rev"; "(pow ?a (+ ?b 1))" => "(* (rep-pow ?a ?b 1) ?a)"),
+    rewrite!("pow-neg"; "(pow ?a (neg ?b))" => "(rep 1 (rep-pow ?a ?b 0) 0)"),
     rewrite!("log-rec"; "(log (/ 1 ?a))" => "(neg (log ?a))"),
+    rewrite!("log-pow"; "(log (pow ?a ?b))" => "(* ?b (rep-log (fabs ?a) 0))"),
     rewrite!("log-E"; "(log E)" => "1"),
     rewrite!("log-prod"; "(log (* ?a ?b))" => "(+ (log (fabs ?a)) (log (fabs ?b)))"),
     rewrite!("log-div"; "(log (/ ?a ?b))" => "(- (log (fabs ?a)) (log (fabs ?b)))"),
@@ -452,6 +455,7 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("pow-div"; "(/ (pow ?a ?b) (pow ?a ?c))" => "(pow ?a (- ?b ?c))"),
     rewrite!("exp-lft-sqr-rev"; "(* (exp ?a) (exp ?a))" => "(exp (* ?a 2))"),
     rewrite!("div-flip-rev"; "(/ 1 (/ ?b ?a))" => "(/ ?a ?b)"),
+    rewrite!("div-flip"; "(/ ?a ?b)" => "(rep 1 (rep ?b ?a 0) (/ ?a ?b))"),
 
     // trigonometry
     rewrite!("tan-0"; "(tan 0)" => "0"),

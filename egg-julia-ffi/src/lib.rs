@@ -31,6 +31,8 @@ define_language! {
         "log"   = Log(Id),
         "cbrt"  = Cbrt(Id),
         "rep"   = Rep([Id; 3]),
+        "rep-pow" = RepPow([Id; 3]),
+        "rep-log" = RepLog([Id; 2]),
 
         // leaves
         Num(Constant),
@@ -41,9 +43,7 @@ define_language! {
     }
 }
 
-// ConstantFold
-// explanations disabled in egraph_create because modify() calls union() directly
-// fully similar to herbie actual ConstantFold in src/math.rs
+// ConstantFold — herbie/egg-herbie/src/math.rs
 pub struct ConstantFold {
     pub unsound: AtomicBool,
     pub max_abs_exponent: Ratio<BigInt>,
@@ -148,6 +148,7 @@ pub struct EGraphWithRoot {
     pub egraph:      EGraph<MathLang, ConstantFold>,
     pub root:        Id,
     pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
+    pub iterations:  Vec<Iteration<()>>, // egg/src/run.rs Iteration.applied — rule fire counts per iteration
 }
 
 fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
@@ -157,6 +158,8 @@ fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 fn rep_removal_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     vec![
         rewrite!("remove-rep"; "(rep ?a ?b ?c)" => "(/ ?a ?b)"),
+        rewrite!("remove-rep-pow"; "(rep-pow ?a ?b ?c)" => "(pow ?a ?b)"),
+        rewrite!("remove-rep-log"; "(rep-log ?a ?b)" => "(log ?a)"),
     ]
 }
 
@@ -175,21 +178,21 @@ impl CostFunction<MathLang> for AstWithRep {
     fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> Self::Cost
     where C: FnMut(Id) -> Self::Cost {
         match enode {
-            MathLang::Rep(_) => usize::MAX, // rep node 
+            MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => usize::MAX, // rep nodes
             _ => enode.fold(1, |sum, id| usize::saturating_add(sum, costs(id))),// Astsize()
             // please look into the costs of sqrt,sinh,cosh,etc.
         }
     }
 }
 
-// build egraph — explanations disabled so ConstantFold::modify can call union() directly
+// explanations enabled — herbie/egg-herbie/src/lib.rs egraph_create()
 #[no_mangle]
 pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot {
     let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
-    let mut egraph = EGraph::new(ConstantFold::default());
+    let mut egraph = EGraph::new(ConstantFold::default()).with_explanations_enabled();
     let root = egraph.add_expr(&expr);
-    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4 }))
+    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4, iterations: Vec::new() }))
 }
 
 fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
@@ -211,7 +214,7 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let runner = Runner::default()
         .with_node_limit(4000)
         .with_hook(|r: &mut Runner<MathLang, ConstantFold>| {
-            eprintln!("[hook] iter={} nodes={} unsound={}", r.iterations.len(), r.egraph.total_size(), r.egraph.analysis.unsound.load(Ordering::SeqCst));
+           // eprintln!("[hook] iter={} nodes={} unsound={}", r.iterations.len(), r.egraph.total_size(), r.egraph.analysis.unsound.load(Ordering::SeqCst));
             if r.egraph.analysis.unsound.load(Ordering::SeqCst) {
                 Err("Unsoundness detected".into())
             } else {
@@ -223,16 +226,18 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
         .run(&make_rules());
     let stop = stop_reason_to_u8(&runner.stop_reason);
     let root = runner.roots[0];
+    let iterations = runner.iterations.clone();
     let mut egraph = runner.egraph;
     // dont consider rep rules in future results
     for rule in rep_removal_rules() {
         let matches = rule.search(&egraph);
         rule.apply(&mut egraph, &matches);
+        egraph.rebuild();
     }
-    egraph.rebuild();
     eg.stop_reason = stop;
     eg.root        = egraph.find(root);
     eg.egraph      = egraph;
+    eg.iterations  = iterations;
 }
 
 // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
@@ -350,6 +355,26 @@ pub extern "C" fn egraph_unsound(ptr: *mut EGraphWithRoot) -> bool {
     eg.egraph.analysis.unsound.load(Ordering::SeqCst)
 }
 
+// egg/src/run.rs Iteration.applied — rule name -> total times applied,
+// summed across every iteration of the last egraph_saturate call
+#[no_mangle]
+pub extern "C" fn egraph_rule_stats(ptr: *mut EGraphWithRoot) -> *mut c_char {
+    let eg = unsafe { &*ptr };
+    let mut totals: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for iter in &eg.iterations {
+        for (name, count) in &iter.applied {
+            *totals.entry(name.to_string()).or_insert(0) += count;
+        }
+    }
+    let mut pairs: Vec<(String, usize)> = totals.into_iter().collect();
+    pairs.sort_by(|a, b| b.1.cmp(&a.1));
+    let mut result = String::new();
+    for (name, count) in pairs {
+        result.push_str(&format!("{}: {}\n", name, count));
+    }
+    CString::new(result).unwrap().into_raw()
+}
+
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
@@ -362,6 +387,19 @@ pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c
     let eg = unsafe { &*ptr };
     let expr = eg.egraph.id_to_expr(Id::from(id as usize));
     CString::new(expr.to_string()).unwrap().into_raw()
+}
+
+// herbie/egg-herbie/src/lib.rs egraph_get_proof
+#[no_mangle]
+pub extern "C" fn egraph_get_proof(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char, goal_ptr: *const c_char) -> *mut c_char {
+    let eg = unsafe { &mut *ptr };
+    let expr: RecExpr<MathLang> = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().parse().unwrap();
+    let goal: RecExpr<MathLang> = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().parse().unwrap();
+    let string = eg.egraph
+        .explain_equivalence(&expr, &goal)
+        .get_string_with_let()
+        .replace('\n', " ");
+    CString::new(string).unwrap().into_raw()
 }
 
 // returns all enodes inside a given eclass as s-expr's
@@ -377,7 +415,7 @@ pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mu
     let mut extractor = Extractor::new(&eg.egraph, AstWithRep);
 
     for enode in &eclass.nodes {
-        if matches!(enode, MathLang::Rep(_)) {
+        if matches!(enode, MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_)) {
             continue;
         }
         // show operator with raw child eclass ids

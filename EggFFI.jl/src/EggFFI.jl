@@ -16,7 +16,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
-       egraph_num_classes, egraph_get_eclasses,
+       egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -113,6 +113,40 @@ function egraph_get_eclasses(ptr::Ptr{Cvoid})::Vector{UInt32}
     buf = Vector{UInt32}(undef, n)
     ccall((:egraph_get_eclasses, LIBPATH), Cvoid, (Ptr{Cvoid}, Ptr{UInt32}), ptr, buf)
     return buf
+end
+
+"""
+    egraph_get_proof(ptr::Ptr{Cvoid}, expr::String, goal::String) -> String
+
+    Returns the step-by-step rewrite proof (as a string) explaining why
+    `expr` and `goal` (both s-expression strings) are equivalent in the egraph.
+    Requires explanations to be enabled (see egraph_create).
+"""
+function egraph_get_proof(ptr::Ptr{Cvoid}, expr::String, goal::String)::String
+    raw = ccall((:egraph_get_proof, LIBPATH), Ptr{UInt8},
+        (Ptr{Cvoid}, Cstring, Cstring), ptr, expr, goal)
+    result = unsafe_string(raw)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
+    return result
+end
+
+"""
+    egraph_rule_stats(ptr::Ptr{Cvoid}) -> Dict{String, Int}
+
+    Returns a map from rule name to the total number of times that rule
+    was applied across all iterations of the last egraph_saturate! call
+    (see egg::Iteration.applied in egg/src/run.rs).
+"""
+function egraph_rule_stats(ptr::Ptr{Cvoid})::Dict{String, Int}
+    raw = ccall((:egraph_rule_stats, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid},), ptr)
+    result = unsafe_string(raw)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
+    stats = Dict{String, Int}()
+    for line in filter(!isempty, split(result, "\n"))
+        name, count = split(line, ": ")
+        stats[name] = parse(Int, count)
+    end
+    return stats
 end
 
 """
