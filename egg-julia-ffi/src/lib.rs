@@ -195,6 +195,20 @@ pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot 
     Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4, iterations: Vec::new() }))
 }
 
+// herbie/egg-herbie/src/lib.rs egraph_add_node — inserts a single enode into the EXISTING egraph from an operator name + already child ids.
+#[no_mangle]
+pub extern "C" fn egraph_add_node(ptr: *mut EGraphWithRoot, op_ptr: *const c_char, ids_ptr: *const u32, num_ids: u32) -> u32 {
+    let eg = unsafe { &mut *ptr };
+    let op = unsafe { CStr::from_ptr(op_ptr) }.to_str().unwrap();
+    let ids: Vec<Id> = unsafe { std::slice::from_raw_parts(ids_ptr, num_ids as usize) }
+        .iter()
+        .map(|&i| Id::from(i as usize))
+        .collect();
+    let node = MathLang::from_op(op, ids).unwrap();
+    let id = eg.egraph.add(node);
+    usize::from(id) as u32
+}
+
 fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
     match reason {
         Some(StopReason::Saturated)         => 0,
