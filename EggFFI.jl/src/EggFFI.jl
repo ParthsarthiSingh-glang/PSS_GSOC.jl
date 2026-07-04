@@ -17,7 +17,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
-       generate_candidates, egraph_add_node, egraph_add_root, insert_nodewise!,
+       generate_candidates, find_preprocessing, egraph_add_node, egraph_add_root, insert_nodewise!,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -113,20 +113,52 @@ function optimize_expr(expr; warn::Bool = true)::Num
 end
 
 """
-    generate_candidates(expr) -> Vector{Tuple{Symbol, Any}}
+    generate_candidates(expr) -> Vector{Tuple{Symbol, Any, Any}}
 
-    Returns (label, candidate_expr) pairs:
-      (:abs, v)    = expr with v => -v substituted
-      (:negabs, v) = -expr with v => -v substituted    
+    attached rather than just the candidate expression:
+      (:abs, v, cand)    = expr with v => -v substituted
+      (:negabs, v, cand) = -expr with v => -v substituted
 """
 function generate_candidates(expr)
     vars = Symbolics.get_variables(expr)
-    candidates = Tuple{Symbol, Any}[]
+    candidates = Tuple{Symbol, Any, Any}[]
     for v in vars
-        push!(candidates, (:abs, substitute(expr, Dict(v => -v))))
-        push!(candidates, (:negabs, substitute(-expr, Dict(v => -v))))
+        push!(candidates, (:abs, v, substitute(expr, Dict(v => -v))))
+        push!(candidates, (:negabs, v, substitute(-expr, Dict(v => -v))))
     end
     return candidates
+end
+
+"""
+    find_preprocessing(expr) -> Vector{Tuple{Symbol, Any}}
+
+    generates even/odd candidates, inserts the original + every candidate into ONE
+    shared egraph as separate roots, saturates once .
+"""
+function find_preprocessing(expr)
+    candidates = generate_candidates(expr)
+
+    ptr = egraph_create(to_sexpr(expr))
+    root0 = egraph_root_id(ptr)
+
+    tagged_ids = Tuple{Symbol, Any, UInt32}[]
+    for (label, v, cand_expr) in candidates
+        tree = parse_sexpr(to_sexpr(cand_expr))
+        id = insert_nodewise!(ptr, tree)
+        egraph_add_root(ptr, id)
+        push!(tagged_ids, (label, v, id))
+    end
+
+    egraph_saturate!(ptr)
+
+    canon0 = egraph_find(ptr, root0)
+    held = Tuple{Symbol, Any}[]
+    for (label, v, id) in tagged_ids
+        egraph_find(ptr, id) == canon0 && push!(held, (label, v))
+    end
+
+    egraph_destroy(ptr)
+    return held
 end
 
 # ==================== UTILITY FUNCTIONS ====================
