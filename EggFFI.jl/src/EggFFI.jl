@@ -17,6 +17,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
+       generate_candidates,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -74,6 +75,23 @@ end
 function optimize_expr(expr; warn::Bool = true)::Num
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
     return optimize_expr(expr, vars; warn)
+end
+
+"""
+    generate_candidates(expr) -> Vector{Tuple{Symbol, Any}}
+
+    Returns (label, candidate_expr) pairs:
+      (:abs, v)    = expr with v => -v substituted
+      (:negabs, v) = -expr with v => -v substituted    
+"""
+function generate_candidates(expr)
+    vars = Symbolics.get_variables(expr)
+    candidates = Tuple{Symbol, Any}[]
+    for v in vars
+        push!(candidates, (:abs, substitute(expr, Dict(v => -v))))
+        push!(candidates, (:negabs, substitute(-expr, Dict(v => -v))))
+    end
+    return candidates
 end
 
 # ==================== UTILITY FUNCTIONS ====================
