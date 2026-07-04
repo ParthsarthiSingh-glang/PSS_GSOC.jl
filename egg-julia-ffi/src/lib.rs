@@ -147,6 +147,7 @@ impl Analysis<MathLang> for ConstantFold {
 pub struct EGraphWithRoot {
     pub egraph:      EGraph<MathLang, ConstantFold>,
     pub root:        Id,
+    pub roots:       Vec<Id>, // herbie/egg-herbie/src/lib.rs Context.runner.roots
     pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
     pub iterations:  Vec<Iteration<()>>, // egg/src/run.rs Iteration.applied — rule fire counts per iteration
 }
@@ -192,7 +193,7 @@ pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot 
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
     let mut egraph = EGraph::new(ConstantFold::default()).with_explanations_enabled();
     let root = egraph.add_expr(&expr);
-    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4, iterations: Vec::new() }))
+    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, roots: vec![root], stop_reason: 4, iterations: Vec::new() }))
 }
 
 // herbie/egg-herbie/src/lib.rs egraph_add_node — inserts a single enode into the EXISTING egraph from an operator name + already child ids.
@@ -207,6 +208,13 @@ pub extern "C" fn egraph_add_node(ptr: *mut EGraphWithRoot, op_ptr: *const c_cha
     let node = MathLang::from_op(op, ids).unwrap();
     let id = eg.egraph.add(node);
     usize::from(id) as u32
+}
+
+// herbie/egg-herbie/src/lib.rs egraph_add_root - an already-existing id gets as a tracket root 
+#[no_mangle]
+pub extern "C" fn egraph_add_root(ptr: *mut EGraphWithRoot, id: u32) {
+    let eg = unsafe { &mut *ptr };
+    eg.roots.push(Id::from(id as usize));
 }
 
 fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {

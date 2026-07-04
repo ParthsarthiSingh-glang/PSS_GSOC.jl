@@ -17,7 +17,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
-       generate_candidates,
+       generate_candidates, egraph_add_node, egraph_add_root, insert_nodewise!,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -29,6 +29,41 @@ end
 
 function egraph_create(expr::String)::Ptr{Cvoid}
     ccall((:egraph_create, LIBPATH), Ptr{Cvoid}, (Cstring,), expr)
+end
+
+"""
+    egraph_add_node(ptr, op::String, ids::Vector{UInt32}) -> UInt32
+
+    Inserts a single enode into an EXISTING egraph from an operator name and
+    already-resolved child ids. Children must be inserted first (bottom-up).
+"""
+function egraph_add_node(ptr::Ptr{Cvoid}, op::String, ids::Vector{UInt32})::UInt32
+    ccall((:egraph_add_node, LIBPATH), UInt32,
+        (Ptr{Cvoid}, Cstring, Ptr{UInt32}, UInt32), ptr, op, ids, length(ids))
+end
+
+"""
+    egraph_add_root(ptr, id::Integer)
+
+    Registers an already-existing id (from egraph_add_node) as a tracked root.
+"""
+function egraph_add_root(ptr::Ptr{Cvoid}, id::Integer)
+    ccall((:egraph_add_root, LIBPATH), Cvoid, (Ptr{Cvoid}, UInt32), ptr, id)
+end
+
+"""
+    insert_nodewise!(ptr, tree) -> UInt32
+
+    Walks a parse_sexpr(...) tree bottom-up
+"""
+function insert_nodewise!(ptr::Ptr{Cvoid}, tree)::UInt32
+    if tree isa AbstractString
+        return egraph_add_node(ptr, String(tree), UInt32[])
+    else
+        op, args = tree
+        ids = UInt32[insert_nodewise!(ptr, a) for a in args]
+        return egraph_add_node(ptr, String(op), ids)
+    end
 end
 
 function egraph_saturate!(ptr::Ptr{Cvoid})
