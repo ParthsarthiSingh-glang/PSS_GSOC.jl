@@ -4,11 +4,13 @@ version = "0.1.0"
 authors = ["Parthsarthi Singh"]
 
 [deps]
+IntervalArithmetic = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
 SymbolicUtils = "d1185830-fcd6-423d-90d6-eec64667417b"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
 
 [compat]
+IntervalArithmetic = "1.0.9"
 SymbolicUtils = "4.34.2"
 Symbolics = "7.26.0"
 TermInterface = "2.0.0"

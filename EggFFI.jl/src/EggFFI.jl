@@ -9,6 +9,7 @@ const LIBPATH = joinpath(
     @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
 
 include("converter.jl")
+include("sampling.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
@@ -18,6 +19,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
        generate_candidates, find_preprocessing, egraph_add_node, egraph_add_root, insert_nodewise!,
+       SampleContext, sample_context,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
