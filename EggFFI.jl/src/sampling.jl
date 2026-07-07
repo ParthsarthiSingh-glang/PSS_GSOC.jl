@@ -63,3 +63,13 @@ function preprocess_pcontext(context::SampleContext, held::Vector{Tuple{Symbol,A
 
     return SampleContext(new_points, new_values)
 end
+
+"""
+    fast_eval(expr, vars) -> Function
+
+Compiles expr into Float64 function - Herbie's fast evaluator
+but via build_function . nanmath defaults to true.
+"""
+function fast_eval(expr, vars)
+    return Symbolics.build_function(expr, vars...; expression=Val{false})
+end
