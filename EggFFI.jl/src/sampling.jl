@@ -33,3 +33,33 @@ function sample_context(expr, vars;
     end
     return SampleContext(points, values)
 end
+
+"""
+    preprocess_pcontext(context::SampleContext, held::Vector{Tuple{Symbol,Any}}) -> SampleContext
+
+    Applies each held identity to the sample points :
+        :abs    -> replace value with abs(value)
+        :negabs -> copysign(1, v) == sign(v)
+"""
+function preprocess_pcontext(context::SampleContext, held::Vector{Tuple{Symbol,Any}})
+    new_points = Dict{Num, Interval{BigFloat}}[]
+    new_values = Interval{BigFloat}[]
+
+    for (point, exact_value) in zip(context.points, context.original_values)
+        new_point = copy(point)
+        new_value = exact_value
+        for (label, v) in reverse(held)
+            original = new_point[v]
+            if label == :abs
+                new_point[v] = abs(original)
+            elseif label == :negabs
+                new_point[v] = abs(original)
+                new_value = sign(original) * new_value
+            end
+        end
+        push!(new_points, new_point)
+        push!(new_values, new_value)
+    end
+
+    return SampleContext(new_points, new_values)
+end
