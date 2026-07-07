@@ -73,3 +73,37 @@ but via build_function . nanmath defaults to true.
 function fast_eval(expr, vars)
     return Symbolics.build_function(expr, vars...; expression=Val{false})
 end
+
+"""
+    flonums_between(a::Float64, b::Float64) -> Int
+
+Counts representable Float64 values between a and b (ULP distance).
+
+Built from https://discourse.julialang.org/t/calculating-ulp-distance-between-two-floating-point-numbers-quickly/61581/3
+This implementation still need to be confirmed fully wrt Racket in Herbie.
+"""
+function flonums_between(a::Float64, b::Float64)
+    a == b && return 0
+    (isnan(a) || isnan(b) || isinf(a) || isinf(b)) && return typemax(Int64)
+
+    a_int = reinterpret(Int64, a)
+    b_int = reinterpret(Int64, b)
+    a_int = a_int < 0 ? (typemin(Int64) - a_int) : a_int
+    b_int = b_int < 0 ? (typemin(Int64) - b_int) : b_int
+
+    return abs(b_int - a_int)
+end
+
+"""
+    ulps_to_bits(x) -> Float64
+
+Converts a ULP distance into bits of precision lost .
+"""
+ulps_to_bits(x) = log(2, x)
+
+"""
+    errors_score(e) -> Float64
+
+Average of a list of per-point error values .
+"""
+errors_score(e) = sum(e) / length(e)
