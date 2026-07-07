@@ -107,3 +107,36 @@ ulps_to_bits(x) = log(2, x)
 Average of a list of per-point error values .
 """
 errors_score(e) = sum(e) / length(e)
+
+"""
+    score_context(expr, vars, context::SampleContext; invalid_bits=64.0) -> Float64
+
+Scores expr Float64 accuracy against context ground truth.
+Invalid_bits defaults to 64.0 (Float64's width).
+
+"""
+function score_context(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)
+    f = fast_eval(expr, vars)
+    bits = Float64[]
+    for (point, exact_interval) in zip(context.points, context.original_values)
+        pt_vals = [Float64(mid(point[v])) for v in vars]
+        fast_val = f(pt_vals...)
+        ground_truth = Float64(mid(exact_interval))
+        err = flonums_between(fast_val, ground_truth)
+        push!(bits, err == typemax(Int64) ? invalid_bits : ulps_to_bits(err))
+    end
+    return errors_score(bits)
+end
+
+"""
+    preprocessing_leq(expr, vars, context::SampleContext,
+                      held1::Vector{Tuple{Symbol,Any}}, held2::Vector{Tuple{Symbol,Any}}) -> Bool
+
+Is held1's accuracy at least as good as held2's, on the same expression and sample points ?
+"""
+function preprocessing_leq(expr, vars, context::SampleContext,
+                            held1::Vector{Tuple{Symbol,Any}}, held2::Vector{Tuple{Symbol,Any}})
+    context1 = preprocess_pcontext(context, held1)
+    context2 = preprocess_pcontext(context, held2)
+    return score_context(expr, vars, context1) <= score_context(expr, vars, context2)
+end
