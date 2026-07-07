@@ -4,6 +4,12 @@ using TermInterface
 using Symbolics
 using SymbolicUtils
 
+# compile-preprocessing - fabs/copysign must be registered as a symbolic function so 
+# to_sexpr's nameof(operation(expr)) produces "fabs"/"copysign" matching
+# MathLang node names.
+@register_symbolic fabs(x::Real)
+@register_symbolic copysign(x::Real, y::Real)
+
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(
     @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
@@ -18,7 +24,8 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
-       generate_candidates, find_preprocessing, egraph_add_node, egraph_add_root, insert_nodewise!,
+       generate_candidates, find_preprocessing, compile_preprocessing, apply_preprocessing,
+       egraph_add_node, egraph_add_root, insert_nodewise!,
        SampleContext, sample_context,
        ExactInfinityError
 
@@ -161,6 +168,32 @@ function find_preprocessing(expr)
 
     egraph_destroy(ptr)
     return held
+end
+
+"""
+    compile_preprocessing(expr, label::Symbol, v) -> new_expr
+
+"""
+function compile_preprocessing(expr, label::Symbol, v)
+    if label == :abs
+        return substitute(expr, Dict(v => fabs(v)))
+    elseif label == :negabs
+        substituted = substitute(expr, Dict(v => fabs(v)))
+        return copysign(1.0, v) * substituted
+    else
+        error("compile_preprocessing: unknown label $label")
+    end
+end
+
+"""
+    apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}}) -> new_expr
+    
+"""
+function apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}})
+    for (label, v) in reverse(held)
+        expr = compile_preprocessing(expr, label, v)
+    end
+    return expr
 end
 
 # ==================== UTILITY FUNCTIONS ====================
