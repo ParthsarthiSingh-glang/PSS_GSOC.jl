@@ -140,3 +140,32 @@ function preprocessing_leq(expr, vars, context::SampleContext,
     context2 = preprocess_pcontext(context, held2)
     return score_context(expr, vars, context1) <= score_context(expr, vars, context2)
 end
+
+"""
+    remove_unnecessary_preprocessing(expr, vars, context::SampleContext,
+                                      held::Vector{Tuple{Symbol,Any}}) -> Vector{Tuple{Symbol,Any}}
+
+Tries dropping each held identity one at a time; if accuracy doesn't get worse
+(preprocessing_leq), drops it and RE-CHECKS THE SAME INDEX (the
+next item has comes into this place and hasn't been tested yet ). 
+Repeats full passes until nothing more drops.
+
+"""
+function remove_unnecessary_preprocessing(expr, vars, context::SampleContext,
+                                           held::Vector{Tuple{Symbol,Any}})
+    changed = true
+    while changed
+        changed = false
+        i = 1
+        while i <= length(held)
+            candidate = deleteat!(copy(held), i)
+            if preprocessing_leq(expr, vars, context, candidate, held)
+                held = candidate
+                changed = true
+            else
+                i += 1
+            end
+        end
+    end
+    return held
+end

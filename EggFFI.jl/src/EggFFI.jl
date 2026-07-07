@@ -28,6 +28,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_add_node, egraph_add_root, insert_nodewise!,
        SampleContext, sample_context, preprocess_pcontext, fast_eval,
        flonums_between, ulps_to_bits, errors_score, score_context, preprocessing_leq,
+       remove_unnecessary_preprocessing,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
