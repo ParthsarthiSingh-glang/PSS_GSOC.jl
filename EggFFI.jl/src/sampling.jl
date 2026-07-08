@@ -31,6 +31,9 @@ function sample_context(expr, vars;
         push!(points, point)
         push!(values, val)
     end
+    if isempty(points)
+        error("sample_context: found no valid points for $expr (all points invalid or out of domain)")
+    end
     return SampleContext(points, values)
 end
 
