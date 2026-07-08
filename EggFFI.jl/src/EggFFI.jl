@@ -25,6 +25,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
        generate_candidates, find_preprocessing, compile_preprocessing, apply_preprocessing,
+       preprocess_expr,
        egraph_add_node, egraph_add_root, insert_nodewise!,
        SampleContext, sample_context, preprocess_pcontext, fast_eval,
        flonums_between, ulps_to_bits, errors_score, score_context, preprocessing_leq,
@@ -196,6 +197,20 @@ function apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}})
         expr = compile_preprocessing(expr, label, v)
     end
     return expr
+end
+
+"""
+    preprocess_expr(expr, vars=Symbolics.get_variables(expr); n=10, range=...) -> new_expr
+
+Runs the full preprocessing : detect (find_preprocessing), numerically (remove_unnecessary_preprocessing), apply (apply_preprocessing).
+"""
+function preprocess_expr(expr, vars=Symbolics.get_variables(expr);
+                          n::Int=10, range=interval(BigFloat(-10), BigFloat(10)))
+    held = find_preprocessing(expr)
+    isempty(held) && return expr
+    ctx = sample_context(expr, vars; n=n, range=range)
+    filtered = remove_unnecessary_preprocessing(expr, vars, ctx, held)
+    return apply_preprocessing(expr, filtered)
 end
 
 # ==================== UTILITY FUNCTIONS ====================
