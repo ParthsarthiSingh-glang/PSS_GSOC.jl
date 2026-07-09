@@ -62,6 +62,8 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
             }
         }
         
-        // rep node check maybe ?
+        MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => {
+            panic!("Rep node reached converter");
+        }
     }
 }
