@@ -2,6 +2,7 @@
 
 mod herbie_rules;
 mod my_rules;
+mod to_rival;
 
 use egg::*;
 use num_bigint::BigInt;

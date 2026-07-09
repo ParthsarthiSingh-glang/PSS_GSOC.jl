@@ -80,6 +80,7 @@ dependencies = [
  "num-rational",
  "num-traits",
  "rival3",
+ "rug",
 ]
 
 [[package]]
