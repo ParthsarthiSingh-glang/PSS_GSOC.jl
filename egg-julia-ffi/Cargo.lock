@@ -79,6 +79,7 @@ dependencies = [
  "num-bigint",
  "num-rational",
  "num-traits",
+ "rand",
  "rival3",
  "rug",
 ]

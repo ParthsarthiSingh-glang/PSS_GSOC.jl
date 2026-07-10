@@ -15,4 +15,5 @@ num-traits = "0.2"
 log = "0.4"
 rival3 = { path = "rival3" }
 rug = { version = "1.28", features = ["float"] }
+rand = "0.9"
 
