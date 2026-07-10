@@ -172,3 +172,33 @@ function remove_unnecessary_preprocessing(expr, vars, context::SampleContext,
     end
     return held
 end
+
+"""
+    rival_sample(expr; n_train=256, n_test=8000) -> (train=(points,values), test=(points,values))
+
+Single-variable only. Samples n_train+n_test points via rival3 
+Train (256) -> main search loop.
+Test (8000) -> final accuracy reporting only.
+"""
+function rival_sample(expr; n_train::Int=256, n_test::Int=8000)
+    expr_str = to_sexpr(expr)
+    n_total = n_train + n_test
+    ptr = ccall((:rival_sample_points, LIBPATH), Ptr{UInt8}, (Cstring, Csize_t), expr_str, n_total)
+    result = unsafe_string(ptr)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), ptr)
+
+    startswith(result, "ERROR:") && error("rival_sample: $result")
+
+    lines = filter(!isempty, split(result, '\n'))
+    points = Vector{Float64}(undef, length(lines))
+    values = Vector{Float64}(undef, length(lines))
+    for (i, line) in enumerate(lines)
+        p, v = split(line)
+        points[i] = parse(Float64, p)
+        values[i] = parse(Float64, v)
+    end
+
+    train = (points=points[1:n_train], values=values[1:n_train])
+    test  = (points=points[n_train+1:end], values=values[n_train+1:end])
+    return (train=train, test=test)
+end
