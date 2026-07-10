@@ -4,6 +4,7 @@ mod herbie_rules;
 mod my_rules;
 mod to_rival;
 mod discretization;
+mod domain_search;
 
 use egg::*;
 use num_bigint::BigInt;
@@ -470,4 +471,3 @@ pub extern "C" fn egraph_dump_dot(ptr: *mut EGraphWithRoot, path_ptr: *const c_c
     let path = unsafe { CStr::from_ptr(path_ptr) }.to_str().unwrap();
     eg.egraph.dot().to_dot(path).unwrap();
 }
-
