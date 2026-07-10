@@ -3,38 +3,24 @@ using IntervalArithmetic
 """
     SampleContext
 
-Holds sample points and the original expression's value at each point .
-SampleContext can be used by future calls .
+Holds sample points and the original expression's ground-truth value at
+each point. Single-variable only, matching rival3's scope. Flat
+Vector{Float64} shape (NOT Dict{Num,Interval{BigFloat}} - that was the
+old IntervalArithmetic.jl-based shape) matching rival_sample's real output.
 """
 struct SampleContext
-    points::Vector{Dict{Num, Interval{BigFloat}}}
-    original_values::Vector{Interval{BigFloat}}
+    points::Vector{Float64}
+    original_values::Vector{Float64}
 end
 
 """
-    sample_context(expr, vars; range=..., n=10) -> SampleContext
+    sample_context(expr, vars; n=10) -> SampleContext
 
+Single-variable only. Rival .
 """
-function sample_context(expr, vars;
-                         range=interval(BigFloat(-10), BigFloat(10)),
-                         n::Int=10)
-    subintervals = mince(range, n)
-    f = Symbolics.build_function(expr, vars...; expression=Val{false}, nanmath=false)
-    points = Dict{Num, Interval{BigFloat}}[]
-    values = Interval{BigFloat}[]
-    for sub in subintervals
-        m = mid(sub)
-        pt_vals = [interval(BigFloat(m)) for _ in vars]
-        val = f(pt_vals...)
-        isempty_interval(val) && continue
-        point = Dict(v => pt_vals[i] for (i, v) in enumerate(vars))
-        push!(points, point)
-        push!(values, val)
-    end
-    if isempty(points)
-        error("sample_context: found no valid points for $expr (all points invalid or out of domain)")
-    end
-    return SampleContext(points, values)
+function sample_context(expr, vars; n::Int=10)
+    result = rival_sample(expr; n_train=n, n_test=0)
+    return SampleContext(result.train.points, result.train.values)
 end
 
 """

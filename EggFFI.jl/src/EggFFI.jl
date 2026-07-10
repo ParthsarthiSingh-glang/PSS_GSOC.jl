@@ -200,15 +200,15 @@ function apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}})
 end
 
 """
-    preprocess_expr(expr, vars=Symbolics.get_variables(expr); n=10, range=...) -> new_expr
+    preprocess_expr(expr, vars=Symbolics.get_variables(expr); n=256) -> new_expr
 
-Runs the full preprocessing : detect (find_preprocessing), numerically (remove_unnecessary_preprocessing), apply (apply_preprocessing).
+Runs the full preprocessing: n defaults to 256 , (config.rkt *num-points*)
+
 """
-function preprocess_expr(expr, vars=Symbolics.get_variables(expr);
-                          n::Int=10, range=interval(BigFloat(-10), BigFloat(10)))
+function preprocess_expr(expr, vars=Symbolics.get_variables(expr); n::Int=256)
     held = find_preprocessing(expr)
     isempty(held) && return expr
-    ctx = sample_context(expr, vars; n=n, range=range)
+    ctx = sample_context(expr, vars; n=n)
     filtered = remove_unnecessary_preprocessing(expr, vars, ctx, held)
     return apply_preprocessing(expr, filtered)
 end
