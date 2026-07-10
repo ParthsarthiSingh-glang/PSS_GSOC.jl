@@ -471,3 +471,79 @@ pub extern "C" fn egraph_dump_dot(ptr: *mut EGraphWithRoot, path_ptr: *const c_c
     let path = unsafe { CStr::from_ptr(path_ptr) }.to_str().unwrap();
     eg.egraph.dot().to_dot(path).unwrap();
 }
+
+// ---------------------- RIVAL3 (single-variable only) ----------------------
+
+// find the single variable name in a parsed expression
+fn single_var_name(expr: &RecExpr<MathLang>) -> String {
+    for node in expr.as_ref() {
+        if let MathLang::Symbol(s) = node {
+            return s.to_string();
+        }
+    }
+    panic!("expression has no variable");
+}
+
+//Single variable.
+#[no_mangle]
+pub extern "C" fn rival_find_domain(expr_ptr: *const c_char) -> *mut c_char {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let root = Id::from(expr.as_ref().len() - 1);
+    let var_name = single_var_name(&expr);
+    let rival_expr = to_rival::mathlang_to_rival(&expr, root);
+
+    let mut machine = rival::MachineBuilder::new(discretization::Fp64Discretization)
+        .build(vec![rival_expr], vec![var_name]);
+
+    let start = rival::Ival::from_lo_hi(
+        rug::Float::with_val(53, f64::NEG_INFINITY),
+        rug::Float::with_val(53, f64::INFINITY),
+    );
+
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 128);
+    confirmed_true.extend(leftover_ambiguous);
+
+    let mut result = String::new();
+    for r in &confirmed_true {
+        result.push_str(&format!("{} {}\n", r.lo(), r.hi()));
+    }
+    CString::new(result).unwrap().into_raw()
+}
+
+// Single variable
+// rival3 adaptive-precision Machine::apply.
+// Returns status via return value: 0=Ok, 1=InvalidInput, 2=Unsamplable.
+// status=0, lo_out/hi_out are returned
+#[no_mangle]
+pub extern "C" fn rival_apply_point(
+    expr_ptr: *const c_char,
+    value: f64,
+    lo_out: *mut f64,
+    hi_out: *mut f64,
+) -> u8 {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let root = Id::from(expr.as_ref().len() - 1);
+    let var_name = single_var_name(&expr);
+    let rival_expr = to_rival::mathlang_to_rival(&expr, root);
+
+    let mut machine = rival::MachineBuilder::new(discretization::Fp64Discretization)
+        .build(vec![rival_expr], vec![var_name]);
+
+    let point = rug::Float::with_val(53, value);
+    let arg = rival::Ival::from_lo_hi(point.clone(), point);
+
+    match machine.apply(&[arg], None, 5) {
+        Ok(results) => {
+            let r = &results[0];
+            unsafe {
+                *lo_out = r.lo().to_f64();
+                *hi_out = r.hi().to_f64();
+            }
+            0
+        }
+        Err(rival::RivalError::InvalidInput) => 1,
+        Err(rival::RivalError::Unsamplable) => 2,
+    }
+}
