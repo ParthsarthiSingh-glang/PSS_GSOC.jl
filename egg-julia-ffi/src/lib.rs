@@ -501,7 +501,7 @@ pub extern "C" fn rival_find_domain(expr_ptr: *const c_char) -> *mut c_char {
         rug::Float::with_val(53, f64::INFINITY),
     );
 
-    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 128);
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
     confirmed_true.extend(leftover_ambiguous);
 
     let mut result = String::new();
@@ -546,4 +546,39 @@ pub extern "C" fn rival_apply_point(
         Err(rival::RivalError::InvalidInput) => 1,
         Err(rival::RivalError::Unsamplable) => 2,
     }
+}
+
+// domain-find + weighted-sample + ground-truth
+#[no_mangle]
+pub extern "C" fn rival_sample_points(expr_ptr: *const c_char, n: usize) -> *mut c_char {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let root = Id::from(expr.as_ref().len() - 1);
+    let var_name = single_var_name(&expr);
+    let rival_expr = to_rival::mathlang_to_rival(&expr, root);
+
+    let mut machine = rival::MachineBuilder::new(discretization::Fp64Discretization)
+        .build(vec![rival_expr], vec![var_name]);
+
+    let start = rival::Ival::from_lo_hi(
+        rug::Float::with_val(53, f64::NEG_INFINITY),
+        rug::Float::with_val(53, f64::INFINITY),
+    );
+
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
+    confirmed_true.extend(leftover_ambiguous);
+
+    let mut result = String::new();
+    match domain_search::sample_points(&mut machine, &confirmed_true, n) {
+        Ok(points) => {
+            for (point, value) in &points {
+                result.push_str(&format!("{} {}\n", point, value));
+            }
+        }
+        Err(e) => {
+            // raise-herbie-sampling-error
+            result.push_str(&format!("ERROR: {}\n", e));
+        }
+    }
+    CString::new(result).unwrap().into_raw()
 }
