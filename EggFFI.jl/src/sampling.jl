@@ -3,10 +3,8 @@ using IntervalArithmetic
 """
     SampleContext
 
-Holds sample points and the original expression's ground-truth value at
-each point. Single-variable only, matching rival3's scope. Flat
-Vector{Float64} shape (NOT Dict{Num,Interval{BigFloat}} - that was the
-old IntervalArithmetic.jl-based shape) matching rival_sample's real output.
+Holds sample points and the original expression's value at each point .
+SampleContext can be used by future calls .
 """
 struct SampleContext
     points::Vector{Float64}
@@ -29,27 +27,27 @@ end
     Applies each held identity to the sample points :
         :abs    -> replace value with abs(value)
         :negabs -> copysign(1, v) == sign(v)
+
 """
 function preprocess_pcontext(context::SampleContext, held::Vector{Tuple{Symbol,Any}})
-    new_points = Dict{Num, Interval{BigFloat}}[]
-    new_values = Interval{BigFloat}[]
-
-    for (point, exact_value) in zip(context.points, context.original_values)
-        new_point = copy(point)
-        new_value = exact_value
-        for (label, v) in reverse(held)
-            original = new_point[v]
+    n = length(context.points)
+    new_points = Vector{Float64}(undef, n)
+    new_values = Vector{Float64}(undef, n)
+    for i in 1:n
+        new_point = context.points[i]
+        new_value = context.original_values[i]
+        for (label, v) in held
+            original = new_point
             if label == :abs
-                new_point[v] = abs(original)
+                new_point = abs(original)
             elseif label == :negabs
-                new_point[v] = abs(original)
+                new_point = abs(original)
                 new_value = sign(original) * new_value
             end
         end
-        push!(new_points, new_point)
-        push!(new_values, new_value)
+        new_points[i] = new_point
+        new_values[i] = new_value
     end
-
     return SampleContext(new_points, new_values)
 end
 
