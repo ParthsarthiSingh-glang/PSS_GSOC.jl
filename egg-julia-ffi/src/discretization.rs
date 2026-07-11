@@ -33,12 +33,24 @@ fn ordinal_distance_f64(x: f64, y: f64) -> usize {
     if x == y {
         return 0;
     }
-    let to_ordinal = |v: f64| -> i64 {
-        if v == 0.0 {
-            return 0;
-        }
-        let bits = v.to_bits() as i64;
-        if bits < 0 { !bits } else { bits }
-    };
     to_ordinal(y).wrapping_sub(to_ordinal(x)).unsigned_abs() as usize
+}
+
+//  ordinal conversion (Racket flonum->ordinal / our own flonums_between in sampling.jl)
+#[inline]
+pub(crate) fn to_ordinal(v: f64) -> i64 {
+    if v == 0.0 {
+        return 0;
+    }
+    let bits = v.to_bits() as i64;
+    if bits < 0 { i64::MIN.wrapping_sub(bits) } else { bits }
+}
+
+#[inline]
+pub(crate) fn from_ordinal(o: i64) -> f64 {
+    if o == 0 {
+        return 0.0;
+    }
+    let bits: u64 = if o < 0 { i64::MIN.wrapping_sub(o) as u64 } else { o as u64 };
+    f64::from_bits(bits)
 }

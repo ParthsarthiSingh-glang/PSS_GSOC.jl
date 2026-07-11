@@ -1,5 +1,3 @@
-using IntervalArithmetic
-
 """
     SampleContext
 
