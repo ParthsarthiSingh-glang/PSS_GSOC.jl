@@ -105,10 +105,8 @@ Invalid_bits defaults to 64.0 (Float64's width).
 function score_context(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)
     f = fast_eval(expr, vars)
     bits = Float64[]
-    for (point, exact_interval) in zip(context.points, context.original_values)
-        pt_vals = [Float64(mid(point[v])) for v in vars]
-        fast_val = f(pt_vals...)
-        ground_truth = Float64(mid(exact_interval))
+    for (point, ground_truth) in zip(context.points, context.original_values)
+        fast_val = f(point)
         err = flonums_between(fast_val, ground_truth)
         push!(bits, err == typemax(Int64) ? invalid_bits : ulps_to_bits(err))
     end
