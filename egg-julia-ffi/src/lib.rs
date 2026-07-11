@@ -2,6 +2,9 @@
 
 mod herbie_rules;
 mod my_rules;
+mod to_rival;
+mod discretization;
+mod domain_search;
 
 use egg::*;
 use num_bigint::BigInt;
@@ -147,6 +150,7 @@ impl Analysis<MathLang> for ConstantFold {
 pub struct EGraphWithRoot {
     pub egraph:      EGraph<MathLang, ConstantFold>,
     pub root:        Id,
+    pub roots:       Vec<Id>, // herbie/egg-herbie/src/lib.rs Context.runner.roots
     pub stop_reason: u8,  // 0=Saturated 1=IterationLimit 2=NodeLimit 3=TimeLimit 4=Other
     pub iterations:  Vec<Iteration<()>>, // egg/src/run.rs Iteration.applied — rule fire counts per iteration
 }
@@ -192,7 +196,28 @@ pub extern "C" fn egraph_create(expr_ptr: *const c_char) -> *mut EGraphWithRoot 
     let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
     let mut egraph = EGraph::new(ConstantFold::default()).with_explanations_enabled();
     let root = egraph.add_expr(&expr);
-    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, stop_reason: 4, iterations: Vec::new() }))
+    Box::into_raw(Box::new(EGraphWithRoot { egraph, root, roots: vec![root], stop_reason: 4, iterations: Vec::new() }))
+}
+
+// herbie/egg-herbie/src/lib.rs egraph_add_node — inserts a single enode into the EXISTING egraph from an operator name + already child ids.
+#[no_mangle]
+pub extern "C" fn egraph_add_node(ptr: *mut EGraphWithRoot, op_ptr: *const c_char, ids_ptr: *const u32, num_ids: u32) -> u32 {
+    let eg = unsafe { &mut *ptr };
+    let op = unsafe { CStr::from_ptr(op_ptr) }.to_str().unwrap();
+    let ids: Vec<Id> = unsafe { std::slice::from_raw_parts(ids_ptr, num_ids as usize) }
+        .iter()
+        .map(|&i| Id::from(i as usize))
+        .collect();
+    let node = MathLang::from_op(op, ids).unwrap();
+    let id = eg.egraph.add(node);
+    usize::from(id) as u32
+}
+
+// herbie/egg-herbie/src/lib.rs egraph_add_root - an already-existing id gets as a tracket root 
+#[no_mangle]
+pub extern "C" fn egraph_add_root(ptr: *mut EGraphWithRoot, id: u32) {
+    let eg = unsafe { &mut *ptr };
+    eg.roots.push(Id::from(id as usize));
 }
 
 fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
@@ -445,4 +470,115 @@ pub extern "C" fn egraph_dump_dot(ptr: *mut EGraphWithRoot, path_ptr: *const c_c
     let eg = unsafe { &*ptr };
     let path = unsafe { CStr::from_ptr(path_ptr) }.to_str().unwrap();
     eg.egraph.dot().to_dot(path).unwrap();
+}
+
+// ---------------------- RIVAL3 (single-variable only) ----------------------
+
+// find the single variable name in a parsed expression
+fn single_var_name(expr: &RecExpr<MathLang>) -> String {
+    for node in expr.as_ref() {
+        if let MathLang::Symbol(s) = node {
+            return s.to_string();
+        }
+    }
+    panic!("expression has no variable");
+}
+
+//Single variable.
+#[no_mangle]
+pub extern "C" fn rival_find_domain(expr_ptr: *const c_char) -> *mut c_char {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let root = Id::from(expr.as_ref().len() - 1);
+    let var_name = single_var_name(&expr);
+    let rival_expr = to_rival::mathlang_to_rival(&expr, root);
+
+    let mut machine = rival::MachineBuilder::new(discretization::Fp64Discretization)
+        .build(vec![rival_expr], vec![var_name]);
+
+    let start = rival::Ival::from_lo_hi(
+        rug::Float::with_val(53, f64::NEG_INFINITY),
+        rug::Float::with_val(53, f64::INFINITY),
+    );
+
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
+    confirmed_true.extend(leftover_ambiguous);
+
+    let mut result = String::new();
+    for r in &confirmed_true {
+        result.push_str(&format!("{} {}\n", r.lo(), r.hi()));
+    }
+    CString::new(result).unwrap().into_raw()
+}
+
+// Single variable
+// rival3 adaptive-precision Machine::apply.
+// Returns status via return value: 0=Ok, 1=InvalidInput, 2=Unsamplable.
+// status=0, lo_out/hi_out are returned
+#[no_mangle]
+pub extern "C" fn rival_apply_point(
+    expr_ptr: *const c_char,
+    value: f64,
+    lo_out: *mut f64,
+    hi_out: *mut f64,
+) -> u8 {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let root = Id::from(expr.as_ref().len() - 1);
+    let var_name = single_var_name(&expr);
+    let rival_expr = to_rival::mathlang_to_rival(&expr, root);
+
+    let mut machine = rival::MachineBuilder::new(discretization::Fp64Discretization)
+        .build(vec![rival_expr], vec![var_name]);
+
+    let point = rug::Float::with_val(53, value);
+    let arg = rival::Ival::from_lo_hi(point.clone(), point);
+
+    match machine.apply(&[arg], None, 5) {
+        Ok(results) => {
+            let r = &results[0];
+            unsafe {
+                *lo_out = r.lo().to_f64();
+                *hi_out = r.hi().to_f64();
+            }
+            0
+        }
+        Err(rival::RivalError::InvalidInput) => 1,
+        Err(rival::RivalError::Unsamplable) => 2,
+    }
+}
+
+// domain-find + weighted-sample + ground-truth
+#[no_mangle]
+pub extern "C" fn rival_sample_points(expr_ptr: *const c_char, n: usize) -> *mut c_char {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap();
+    let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+    let root = Id::from(expr.as_ref().len() - 1);
+    let var_name = single_var_name(&expr);
+    let rival_expr = to_rival::mathlang_to_rival(&expr, root);
+
+    let mut machine = rival::MachineBuilder::new(discretization::Fp64Discretization)
+        .build(vec![rival_expr], vec![var_name]);
+
+    let start = rival::Ival::from_lo_hi(
+        rug::Float::with_val(53, f64::NEG_INFINITY),
+        rug::Float::with_val(53, f64::INFINITY),
+    );
+
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
+    confirmed_true.extend(leftover_ambiguous);
+
+    let mut result = String::new();
+    match domain_search::sample_points(&mut machine, &confirmed_true, n) {
+        Ok(points) => {
+            for (point, value) in &points {
+                result.push_str(&format!("{} {}\n", point, value));
+            }
+        }
+        Err(e) => {
+            // raise-herbie-sampling-error
+            result.push_str(&format!("ERROR: {}\n", e));
+        }
+    }
+    CString::new(result).unwrap().into_raw()
 }

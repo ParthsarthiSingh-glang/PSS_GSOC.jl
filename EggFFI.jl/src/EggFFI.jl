@@ -4,11 +4,18 @@ using TermInterface
 using Symbolics
 using SymbolicUtils
 
+# compile-preprocessing - fabs/copysign must be registered as a symbolic function so 
+# to_sexpr's nameof(operation(expr)) produces "fabs"/"copysign" matching
+# MathLang node names.
+@register_symbolic fabs(x::Real)
+@register_symbolic copysign(x::Real, y::Real)
+
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(
     @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
 
 include("converter.jl")
+include("sampling.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
@@ -17,6 +24,12 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
+       generate_candidates, find_preprocessing, compile_preprocessing, apply_preprocessing,
+       preprocess_expr,
+       egraph_add_node, egraph_add_root, insert_nodewise!,
+       SampleContext, sample_context, preprocess_pcontext, fast_eval,
+       flonums_between, ulps_to_bits, errors_score, score_context, preprocessing_leq,
+       remove_unnecessary_preprocessing, rival_sample,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -28,6 +41,41 @@ end
 
 function egraph_create(expr::String)::Ptr{Cvoid}
     ccall((:egraph_create, LIBPATH), Ptr{Cvoid}, (Cstring,), expr)
+end
+
+"""
+    egraph_add_node(ptr, op::String, ids::Vector{UInt32}) -> UInt32
+
+    Inserts a single enode into an EXISTING egraph from an operator name and
+    already-resolved child ids. Children must be inserted first (bottom-up).
+"""
+function egraph_add_node(ptr::Ptr{Cvoid}, op::String, ids::Vector{UInt32})::UInt32
+    ccall((:egraph_add_node, LIBPATH), UInt32,
+        (Ptr{Cvoid}, Cstring, Ptr{UInt32}, UInt32), ptr, op, ids, length(ids))
+end
+
+"""
+    egraph_add_root(ptr, id::Integer)
+
+    Registers an already-existing id (from egraph_add_node) as a tracked root.
+"""
+function egraph_add_root(ptr::Ptr{Cvoid}, id::Integer)
+    ccall((:egraph_add_root, LIBPATH), Cvoid, (Ptr{Cvoid}, UInt32), ptr, id)
+end
+
+"""
+    insert_nodewise!(ptr, tree) -> UInt32
+
+    Walks a parse_sexpr(...) tree bottom-up
+"""
+function insert_nodewise!(ptr::Ptr{Cvoid}, tree)::UInt32
+    if tree isa AbstractString
+        return egraph_add_node(ptr, String(tree), UInt32[])
+    else
+        op, args = tree
+        ids = UInt32[insert_nodewise!(ptr, a) for a in args]
+        return egraph_add_node(ptr, String(op), ids)
+    end
 end
 
 function egraph_saturate!(ptr::Ptr{Cvoid})
@@ -74,6 +122,95 @@ end
 function optimize_expr(expr; warn::Bool = true)::Num
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
     return optimize_expr(expr, vars; warn)
+end
+
+"""
+    generate_candidates(expr) -> Vector{Tuple{Symbol, Any, Any}}
+
+    attached rather than just the candidate expression:
+      (:abs, v, cand)    = expr with v => -v substituted
+      (:negabs, v, cand) = -expr with v => -v substituted
+"""
+function generate_candidates(expr)
+    vars = Symbolics.get_variables(expr)
+    candidates = Tuple{Symbol, Any, Any}[]
+    for v in vars
+        push!(candidates, (:abs, v, substitute(expr, Dict(v => -v))))
+        push!(candidates, (:negabs, v, substitute(-expr, Dict(v => -v))))
+    end
+    return candidates
+end
+
+"""
+    find_preprocessing(expr) -> Vector{Tuple{Symbol, Any}}
+
+    generates even/odd candidates, inserts the original + every candidate into ONE
+    shared egraph as separate roots, saturates once .
+"""
+function find_preprocessing(expr)
+    candidates = generate_candidates(expr)
+
+    ptr = egraph_create(to_sexpr(expr))
+    root0 = egraph_root_id(ptr)
+
+    tagged_ids = Tuple{Symbol, Any, UInt32}[]
+    for (label, v, cand_expr) in candidates
+        tree = parse_sexpr(to_sexpr(cand_expr))
+        id = insert_nodewise!(ptr, tree)
+        egraph_add_root(ptr, id)
+        push!(tagged_ids, (label, v, id))
+    end
+
+    egraph_saturate!(ptr)
+
+    canon0 = egraph_find(ptr, root0)
+    held = Tuple{Symbol, Any}[]
+    for (label, v, id) in tagged_ids
+        egraph_find(ptr, id) == canon0 && push!(held, (label, v))
+    end
+
+    egraph_destroy(ptr)
+    return held
+end
+
+"""
+    compile_preprocessing(expr, label::Symbol, v) -> new_expr
+
+"""
+function compile_preprocessing(expr, label::Symbol, v)
+    if label == :abs
+        return substitute(expr, Dict(v => fabs(v)))
+    elseif label == :negabs
+        substituted = substitute(expr, Dict(v => fabs(v)))
+        return copysign(1.0, v) * substituted
+    else
+        error("compile_preprocessing: unknown label $label")
+    end
+end
+
+"""
+    apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}}) -> new_expr
+    
+"""
+function apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}})
+    for (label, v) in reverse(held)
+        expr = compile_preprocessing(expr, label, v)
+    end
+    return expr
+end
+
+"""
+    preprocess_expr(expr, vars=Symbolics.get_variables(expr); n=256) -> new_expr
+
+Runs the full preprocessing: n defaults to 256 , (config.rkt *num-points*)
+
+"""
+function preprocess_expr(expr, vars=Symbolics.get_variables(expr); n::Int=256)
+    held = find_preprocessing(expr)
+    isempty(held) && return expr
+    ctx = sample_context(expr, vars; n=n)
+    filtered = remove_unnecessary_preprocessing(expr, vars, ctx, held)
+    return apply_preprocessing(expr, filtered)
 end
 
 # ==================== UTILITY FUNCTIONS ====================
