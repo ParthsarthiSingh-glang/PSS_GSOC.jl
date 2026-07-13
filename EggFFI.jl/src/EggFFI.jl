@@ -17,10 +17,11 @@ const LIBPATH = joinpath(
 include("converter.jl")
 include("sampling.jl")
 include("pareto.jl")
+include("alttable.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
-       optimize_expr, from_sexpr, to_sexpr,
+       optimize_expr, from_sexpr, to_sexpr, parse_sexpr,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot,
@@ -29,9 +30,12 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        preprocess_expr,
        egraph_add_node, egraph_add_root, insert_nodewise!,
        SampleContext, sample_context, preprocess_pcontext, fast_eval,
-       flonums_between, ulps_to_bits, errors_score, score_context, preprocessing_leq,
+       flonums_between, ulps_to_bits, errors_score, points_errors, score_context, preprocessing_leq,
        remove_unnecessary_preprocessing, rival_sample,
        ParetoPoint, pareto_compare, pareto_union,
+       ast_size_cost, AltTable, make_alt_table, order_altns,
+       atab_active_alts, atab_all_alts, atab_not_done_alts, atab_completed,
+       atab_set_picked!, atab_eval_altns,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String

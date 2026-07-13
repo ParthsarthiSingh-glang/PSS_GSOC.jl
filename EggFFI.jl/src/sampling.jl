@@ -94,13 +94,13 @@ Average of a list of per-point error values .
 errors_score(e) = sum(e) / length(e)
 
 """
-    score_context(expr, vars, context::SampleContext; invalid_bits=64.0) -> Float64
+    points_errors(expr, vars, context::SampleContext; invalid_bits=64.0) -> Vector{Float64}
 
-Scores expr Float64 accuracy against context ground truth.
+Per-point bits-of-error for expr against context ground truth (the vector
+score_context made into their mean). 
 Invalid_bits defaults to 64.0 (Float64's width).
-
 """
-function score_context(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)
+function points_errors(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)::Vector{Float64}
     f = fast_eval(expr, vars)
     bits = Float64[]
     for (point, ground_truth) in zip(context.points, context.original_values)
@@ -108,7 +108,18 @@ function score_context(expr, vars, context::SampleContext; invalid_bits::Float64
         err = flonums_between(fast_val, ground_truth)
         push!(bits, err == typemax(Int64) ? invalid_bits : ulps_to_bits(err))
     end
-    return errors_score(bits)
+    return bits
+end
+
+"""
+    score_context(expr, vars, context::SampleContext; invalid_bits=64.0) -> Float64
+
+Scores expr Float64 accuracy against context ground truth.
+Invalid_bits defaults to 64.0 (Float64's width).
+
+"""
+function score_context(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)
+    return errors_score(points_errors(expr, vars, context; invalid_bits=invalid_bits))
 end
 
 """
