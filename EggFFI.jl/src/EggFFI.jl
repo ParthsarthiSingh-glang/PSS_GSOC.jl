@@ -16,6 +16,7 @@ const LIBPATH = joinpath(
 
 include("converter.jl")
 include("sampling.jl")
+include("pareto.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
@@ -30,6 +31,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        SampleContext, sample_context, preprocess_pcontext, fast_eval,
        flonums_between, ulps_to_bits, errors_score, score_context, preprocessing_leq,
        remove_unnecessary_preprocessing, rival_sample,
+       ParetoPoint, pareto_compare, pareto_union,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
