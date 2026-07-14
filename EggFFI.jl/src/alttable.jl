@@ -134,3 +134,206 @@ function atab_eval_altns(table::AltTable, candidates::Vector{Num}, vars)
     costs = [Float64(ast_size_cost(c)) for c in candidates]
     return errss, costs
 end
+
+"""
+    atab_add_altn!(table::AltTable, expr::Num, errs::Vector{Float64}, cost::Float64) -> AltTable
+
+Merges new candidate into every point's curve. 
+"""
+function atab_add_altn!(table::AltTable, expr::Num, errs::Vector{Float64}, cost::Float64)::AltTable
+    key = to_sexpr(expr)
+    haskey(table.alt_to_point_idxs, key) && return table
+
+    max_valid_bits = 64.0  # binary64
+    for (i, pcurve) in enumerate(table.point_idx_to_alts)
+        err = errs[i]
+        if err <= max_valid_bits
+            new_point = ParetoPoint(cost, err, [key])
+            table.point_idx_to_alts[i] = pareto_union([new_point], pcurve; combine = vcat)
+        end
+    end
+
+    table.alt_to_point_idxs[key] = Int[]  
+    table.alt_to_done[key] = false
+    table.alt_to_cost[key] = cost
+    table.expr_of[key] = expr
+    return table
+end
+
+"""
+    invert_index(point_idx_to_alts::Vector{Vector{ParetoPoint{String}}}) -> Dict{String, Vector{Int}}
+
+Rebuilds the alt .
+"""
+function invert_index(point_idx_to_alts::Vector{Vector{ParetoPoint{String}}})::Dict{String, Vector{Int}}
+    alt_to_points = Dict{String, Vector{Int}}()
+    for (idx, pcurve) in enumerate(point_idx_to_alts)
+        for ppt in pcurve
+            for alt in ppt.data
+                push!(get!(alt_to_points, alt, Int[]), idx)
+            end
+        end
+    end
+    return alt_to_points
+end
+
+const CoverageGroup = Vector{Union{Nothing, String}}
+
+"""
+    SetCover
+
+State for atab_prune greedy set-cover pass.
+    
+"""
+mutable struct SetCover
+    removable::Set{String}
+    coverage::Vector{Union{Nothing, CoverageGroup}}
+end
+
+"""
+    atab_set_cover(table::AltTable) -> SetCover
+
+Builds the initial SetCover.
+"""
+function atab_set_cover(table::AltTable)::SetCover
+    removable = Set{String}(keys(table.alt_to_point_idxs))
+    coverage = Union{Nothing, CoverageGroup}[]
+    for pcurve in table.point_idx_to_alts
+        for ppt in pcurve
+            if isempty(ppt.data)
+                error("This point has no alts which are best at it! $ppt")
+            elseif length(ppt.data) == 1
+                delete!(removable, ppt.data[1])
+            else
+                push!(coverage, CoverageGroup(ppt.data))
+            end
+        end
+    end
+    return SetCover(removable, coverage)
+end
+
+"""
+    set_cover_remove!(sc::SetCover, altn::String)
+
+Removes altn from consideration.
+"""
+function set_cover_remove!(sc::SetCover, altn::String)
+    delete!(sc.removable, altn)
+    for (j, group) in enumerate(sc.coverage)
+        group === nothing && continue
+        count = 0
+        last = nothing
+        for (i, a) in enumerate(group)
+            a === nothing && continue
+            if a == altn
+                group[i] = nothing
+            else
+                count += 1
+                last = a
+            end
+        end
+        if count == 1
+            sc.coverage[j] = nothing
+            delete!(sc.removable, last)
+        end
+    end
+end
+
+"""
+    removability_lt(table::AltTable, alt1::String, alt2::String) -> Bool
+
+"""
+function removability_lt(table::AltTable, alt1::String, alt2::String)::Bool
+    alt1_done = table.alt_to_done[alt1]
+    alt2_done = table.alt_to_done[alt2]
+    if !alt1_done && alt2_done
+        return true
+    elseif alt1_done && !alt2_done
+        return false
+    end
+
+    alt1_num = length(table.alt_to_point_idxs[alt1])
+    alt2_num = length(table.alt_to_point_idxs[alt2])
+    if alt1_num < alt2_num
+        return true
+    elseif alt1_num > alt2_num
+        return false
+    end
+
+    alt1_cost = table.alt_to_cost[alt1]
+    alt2_cost = table.alt_to_cost[alt2]
+    if alt1_cost < alt2_cost
+        return false
+    elseif alt2_cost < alt1_cost
+        return true
+    else
+        return alt1 < alt2
+    end
+end
+
+"""
+    atab_remove!(table::AltTable, altns::Vector{String}) -> AltTable
+
+"""
+function atab_remove!(table::AltTable, altns::Vector{String})::AltTable
+    isempty(altns) && return table
+    removeset = Set(altns)
+    for pcurve in table.point_idx_to_alts
+        for ppt in pcurve
+            filter!(a -> !(a in removeset), ppt.data)
+        end
+    end
+    for k in altns
+        delete!(table.alt_to_point_idxs, k)
+        delete!(table.alt_to_done, k)
+        delete!(table.alt_to_cost, k)
+    end
+    return table
+end
+
+"""
+    atab_prune!(table::AltTable) -> AltTable
+
+"""
+function atab_prune!(table::AltTable)::AltTable
+    sc = atab_set_cover(table)
+    removability = sort(collect(sc.removable); lt = (a, b) -> removability_lt(table, a, b))
+
+    removed = String[]
+    for worst_alt in removability
+        if worst_alt in sc.removable
+            set_cover_remove!(sc, worst_alt)
+            push!(removed, worst_alt)
+        end
+    end
+    atab_remove!(table, removed)
+    return table
+end
+
+"""
+    atab_add_altns!(table::AltTable, candidates::Vector{Num}, errss::Vector{Vector{Float64}}, costs::Vector{Float64}) -> AltTable
+
+"""
+function atab_add_altns!(table::AltTable, candidates::Vector{Num},
+                          errss::Vector{Vector{Float64}}, costs::Vector{Float64})::AltTable
+    original_all = copy(table.all)
+
+    for (candidate, errs, cost) in zip(candidates, errss, costs)
+        atab_add_altn!(table, candidate, errs, cost)
+    end
+
+    table.alt_to_point_idxs = invert_index(table.point_idx_to_alts)
+    atab_prune!(table)
+    table.alt_to_point_idxs = invert_index(table.point_idx_to_alts)
+    table.all = collect(union(Set(original_all), Set(keys(table.alt_to_point_idxs))))
+
+    return table
+end
+
+"""
+    atab_min_errors(table::AltTable) -> Vector{Float64}
+
+"""
+function atab_min_errors(table::AltTable)::Vector{Float64}
+    return [first(curve).error for curve in table.point_idx_to_alts]
+end

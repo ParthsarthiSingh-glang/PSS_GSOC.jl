@@ -36,6 +36,9 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        ast_size_cost, AltTable, make_alt_table, order_altns,
        atab_active_alts, atab_all_alts, atab_not_done_alts, atab_completed,
        atab_set_picked!, atab_eval_altns,
+       atab_add_altn!, invert_index, CoverageGroup, SetCover, atab_set_cover,
+       set_cover_remove!, removability_lt, atab_remove!, atab_prune!,
+       atab_add_altns!, atab_min_errors,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
