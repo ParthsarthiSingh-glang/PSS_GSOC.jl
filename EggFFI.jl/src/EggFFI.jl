@@ -25,7 +25,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        optimize_expr, from_sexpr, to_sexpr, parse_sexpr,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
-       egraph_eclass_enodes, egraph_dump_dot,
+       egraph_eclass_enodes, egraph_dump_dot, egraph_unsound,
        egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
        generate_candidates, find_preprocessing, compile_preprocessing, apply_preprocessing,
        preprocess_expr,
@@ -41,6 +41,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        set_cover_remove!, removability_lt, atab_remove!, atab_prune!,
        atab_add_altns!, atab_min_errors,
        NUM_ITERATIONS, rewrite_variations, run_iteration!, run_improve!, extract!,
+       ImprovementReport, start_score, end_score, run_improve_with_report,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -87,6 +88,16 @@ function insert_nodewise!(ptr::Ptr{Cvoid}, tree)::UInt32
         ids = UInt32[insert_nodewise!(ptr, a) for a in args]
         return egraph_add_node(ptr, String(op), ids)
     end
+end
+
+"""
+    egraph_unsound(ptr::Ptr{Cvoid}) -> Bool
+
+True if ConstantFold::merge sees two unequal constant values for
+the same eclass during the last egraph_saturate! .
+"""
+function egraph_unsound(ptr::Ptr{Cvoid})::Bool
+    ccall((:egraph_unsound, LIBPATH), Bool, (Ptr{Cvoid},), ptr)
 end
 
 function egraph_saturate!(ptr::Ptr{Cvoid})
