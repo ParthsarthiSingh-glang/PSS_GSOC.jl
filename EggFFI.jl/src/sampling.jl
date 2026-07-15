@@ -104,7 +104,7 @@ function points_errors(expr, vars, context::SampleContext; invalid_bits::Float64
     f = fast_eval(expr, vars)
     bits = Float64[]
     for (point, ground_truth) in zip(context.points, context.original_values)
-        fast_val = f(point)
+        fast_val = Float64(f(point))
         err = flonums_between(fast_val, ground_truth)
         # Herbie finite-ulps (syntax/float.rkt) is 1 + abs(flonums-between(x,y)),
         # never the raw distance directly -- fixes the ans to 0.0 case .

@@ -52,12 +52,18 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
                 ("sinh", 1) => Expr::Sinh(a()),
                 ("cosh", 1) => Expr::Cosh(a()),
                 ("tanh", 1) => Expr::Tanh(a()),
+                ("asinh", 1) => Expr::Asinh(a()),
+                ("acosh", 1) => Expr::Acosh(a()),
+                ("atanh", 1) => Expr::Atanh(a()),
+                ("erf", 1)  => Expr::Erf(a()),
+                ("erfc", 1) => Expr::Erfc(a()),
                 ("exp", 1)  => Expr::Exp(a()),
                 ("copysign", 2) => Expr::Copysign(a(), b()),
                 ("fmin", 2) => Expr::Fmin(a(), b()),
                 ("fmax", 2) => Expr::Fmax(a(), b()),
                 ("atan2", 2) => Expr::Atan2(a(), b()),
                 ("hypot", 2) => Expr::Hypot(a(), b()),
+                ("remainder", 2) => Expr::Remainder(a(), b()),
                 _ => panic!("Other operator: {} (arity {}) not in to_rival.rs list", name, args.len()),
             }
         }

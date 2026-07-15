@@ -160,8 +160,7 @@ end
 function build_expr(tree, vars::Dict{String, Num})::Num
     if tree isa String
         n = _leaf_to_number(tree)
-        # please check here for fractional powers
-        n !== nothing && return Num(Float64(n))
+        n !== nothing && return Num(n)
         haskey(NAMED_CONSTANTS, tree) && return Num(NAMED_CONSTANTS[tree])
         return vars[tree]
     end
