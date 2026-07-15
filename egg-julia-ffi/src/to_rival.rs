@@ -18,7 +18,14 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
             let denom = rug::Integer::from_str(&c.denom().to_string()).unwrap();
             Expr::Rational(rug::Rational::from((numer, denom)))
         }
-        MathLang::Symbol(s) => Expr::Var(s.to_string()),
+        MathLang::Symbol(s) => {
+            let name = s.to_string();
+            match name.as_str() {
+                "PI" => Expr::Pi,
+                "E"  => Expr::E,
+                _ => Expr::Var(name),
+            }
+        }
 
         // unary 
         MathLang::Neg(a)   => Expr::Neg(Box::new(mathlang_to_rival(expr, *a))),

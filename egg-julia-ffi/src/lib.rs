@@ -478,7 +478,10 @@ pub extern "C" fn egraph_dump_dot(ptr: *mut EGraphWithRoot, path_ptr: *const c_c
 fn single_var_name(expr: &RecExpr<MathLang>) -> String {
     for node in expr.as_ref() {
         if let MathLang::Symbol(s) = node {
-            return s.to_string();
+            let name = s.to_string();
+            if name != "PI" && name != "E" {
+                return name;
+            }
         }
     }
     panic!("expression has no variable");
