@@ -62,11 +62,23 @@ function run_iteration!(table::AltTable, vars)::AltTable
 end
 
 """
-    run_improve!(expr::Num, vars=Symbolics.get_variables(expr); n::Int=256) -> AltTable
+    extract!(table::AltTable, vars) -> Num
 
-# still to add things in here#
+Scores atab_all_alts.
 """
-function run_improve!(expr::Num, vars = Symbolics.get_variables(expr); n::Int = 256)::AltTable
+function extract!(table::AltTable, vars)::Num
+    all_keys = atab_all_alts(table)
+    exprs = [table.expr_of[k] for k in all_keys]
+    scores = [score_context(e, vars, table.pcontext) for e in exprs]
+    winner_idx = argmin(scores)
+    return exprs[winner_idx]
+end
+
+"""
+    run_improve!(expr::Num, vars=Symbolics.get_variables(expr); n::Int=256) -> Num
+
+"""
+function run_improve!(expr::Num, vars = Symbolics.get_variables(expr); n::Int = 256)::Num
     ctx = sample_context(expr, vars; n = n)
     table = make_alt_table(ctx, expr, vars)
 
@@ -78,5 +90,5 @@ function run_improve!(expr::Num, vars = Symbolics.get_variables(expr); n::Int = 
         run_iteration!(table, vars)
     end
 
-    return table
+    return extract!(table, vars)
 end

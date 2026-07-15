@@ -287,7 +287,6 @@ function atab_remove!(table::AltTable, altns::Vector{String})::AltTable
         delete!(table.alt_to_point_idxs, k)
         delete!(table.alt_to_done, k)
         delete!(table.alt_to_cost, k)
-        delete!(table.expr_of, k)
     end
     return table
 end

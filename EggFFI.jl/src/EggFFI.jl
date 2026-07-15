@@ -40,7 +40,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        atab_add_altn!, invert_index, CoverageGroup, SetCover, atab_set_cover,
        set_cover_remove!, removability_lt, atab_remove!, atab_prune!,
        atab_add_altns!, atab_min_errors,
-       NUM_ITERATIONS, rewrite_variations, run_iteration!, run_improve!,
+       NUM_ITERATIONS, rewrite_variations, run_iteration!, run_improve!, extract!,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -117,7 +117,14 @@ function egraph_destroy(ptr::Ptr{Cvoid})
     ccall((:egraph_destroy, LIBPATH), Cvoid, (Ptr{Cvoid},), ptr)
 end
 
-function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true)::Num
+"""
+    optimize_expr(expr, vars::Dict{String,Num}; warn=true, loop=false, n=256) -> Num
+
+"""
+function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true, loop::Bool = false, n::Int = 256)::Num
+    if loop
+        return run_improve!(expr, collect(values(vars)); n = n)
+    end
     s = to_sexpr(expr)
     ptr = egraph_create(s)
     egraph_saturate!(ptr)
@@ -130,9 +137,9 @@ function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true)::Num
     return from_sexpr(res, vars)
 end
 
-function optimize_expr(expr; warn::Bool = true)::Num
+function optimize_expr(expr; warn::Bool = true, loop::Bool = false, n::Int = 256)::Num
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
-    return optimize_expr(expr, vars; warn)
+    return optimize_expr(expr, vars; warn, loop, n)
 end
 
 """
