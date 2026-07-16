@@ -19,6 +19,11 @@ function _num_to_sexpr(n)::String
         denominator(n) == 1 && return string(numerator(n))
         return "(/ $(numerator(n)) $(denominator(n)))"
     end
+    if n isa AbstractFloat
+        isinteger(n) && return string(BigInt(n))
+        r = Rational{BigInt}(n)
+        return "(/ $(numerator(r)) $(denominator(r)))"
+    end
     return string(n)
 end
 

@@ -64,6 +64,7 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
                 ("atanh", 1) => Expr::Atanh(a()),
                 ("erf", 1)  => Expr::Erf(a()),
                 ("erfc", 1) => Expr::Erfc(a()),
+                ("abs", 1)  => Expr::Fabs(a()),
                 ("exp", 1)  => Expr::Exp(a()),
                 ("copysign", 2) => Expr::Copysign(a(), b()),
                 ("fmin", 2) => Expr::Fmin(a(), b()),

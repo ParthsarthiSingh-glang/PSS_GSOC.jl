@@ -1,23 +1,15 @@
 # core/alt-table.rkt.
 
 """
-    ast_size_cost(tree) -> Int
+    ast_size_cost(expr) -> Int
 
-Node-count cost of a parse_sexpr(...) tree .
+Node-count cost, walking the Symbolics/SymbolicUtils tree directly .
 """
-function ast_size_cost(tree)::Int
-    tree isa AbstractString && return 1
-    op, args = tree
-    return 1 + sum(ast_size_cost(a) for a in args; init = 0)
+function ast_size_cost(expr)::Int
+    expr = Symbolics.unwrap(expr)
+    (expr isa Number || SymbolicUtils.isconst(expr) || !iscall(expr)) && return 1
+    return 1 + sum(ast_size_cost(a) for a in arguments(expr); init = 0)
 end
-
-"""
-    ast_size_cost(expr::Num) -> Int
-
-    
-costs of a  Num expression 
-"""
-ast_size_cost(expr::Num) = ast_size_cost(parse_sexpr(to_sexpr(expr)))
 
 """
     AltTable
@@ -319,7 +311,11 @@ function atab_add_altns!(table::AltTable, candidates::Vector{Num},
     original_all = copy(table.all)
 
     for (candidate, errs, cost) in zip(candidates, errss, costs)
-        atab_add_altn!(table, candidate, errs, cost)
+        try
+            atab_add_altn!(table, candidate, errs, cost)
+        catch e
+            e isa ExactInfinityError || rethrow()
+        end
     end
 
     table.alt_to_point_idxs = invert_index(table.point_idx_to_alts)
