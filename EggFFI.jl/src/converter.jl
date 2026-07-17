@@ -22,6 +22,7 @@ function _num_to_sexpr(n)::String
     if n isa AbstractFloat
         isinteger(n) && return string(BigInt(n))
         r = Rational{BigInt}(n)
+        denominator(r) == 0 && throw(ExactInfinityError())
         return "(/ $(numerator(r)) $(denominator(r)))"
     end
     return string(n)
