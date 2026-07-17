@@ -5,18 +5,18 @@
 
 [bench_2cbrt]
   input:  (- (cbrt (+ 1 x)) (cbrt x))
-  herbie: (if (<= (- (cbrt (+ 1.0 x)) (cbrt x)) 1e-10) (/ 1.0 (* -1.0 (* x (- (fma -1.0 (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x))))) (* -1.0 (cbrt (+ (/ 1.0 x) (/ 1.0 (* x x)))))) (* 0.3333333333333333 (/ 3.0 (cbrt x))))))) (* 0.3333333333333333 (/ 3.0 (+ (cbrt (+ (fma x x x) (+ x 1.0))) (+ (cbrt (fma x x x)) (cbrt (* x x)))))))
+  herbie: (if (<= (- (cbrt (+ 1.0 x)) (cbrt x)) 0.0) (/ 1.0 (* x (fma (cbrt (- x -2.0)) (/ (cbrt x) x) (/ 2.0 (cbrt x))))) (/ 1.0 (+ (fma (sqrt (fabs x)) (sqrt (fabs (cbrt x))) (cbrt (fma x x x))) (cbrt (+ (fma x x x) (+ x 1.0))))))
   ours:   (- (cbrt (+ 1 x)) (cbrt x))
 
 [bench_2frac]
   input:  (+ (/ 1 (+ 1 x)) (/ -1 x))
-  herbie: (/ (/ -1.0 (- x -1.0)) x)
+  herbie: (/ (/ 1.0 x) (- -1.0 x))
   ours:   (/ (+ 1 (+ (/ 1 x) (/ (+ 1 x) (+ (neg 1) (neg x))))) (+ (neg 1) (neg x)))
 
 [bench_2isqrt]
   input:  (+ (/ 1 (sqrt x)) (/ -1 (sqrt (+ 1 x))))
-  herbie: (if (<= x 24119.92786512669) (+ (sqrt (/ 1.0 x)) (/ -1.0 (sqrt (+ 1.0 x)))) (/ (/ (- 0.5 (/ 0.125 x)) x) (sqrt (- x -1.0))))
-  ours:   (/ 1 (* (+ (sqrt (+ 1 x)) (sqrt x)) (^ (+ x (^ x 2)) (/ 1 2))))
+  herbie: (if (<= (+ (/ 1.0 (sqrt x)) (/ -1.0 (sqrt (+ 1.0 x)))) 2e-13) (/ (/ (- 0.5 (/ 0.125 x)) x) (sqrt (- x -1.0))) (+ (sqrt (/ (- x -1.0) (fma x x x))) (/ -1.0 (sqrt (+ 1.0 x)))))
+  ours:   (+ (/ (sqrt (+ 1 x)) (+ (neg 1) (neg x))) (+ (/ (^ x (/ 1 2)) (+ 1 x)) (/ 1 (* (^ x (/ 1 2)) (+ 1 x)))))
 
 [bench_2sqrt]
   input:  (- (sqrt (+ 1 x)) (sqrt x))
@@ -25,17 +25,17 @@
 
 [bench_3frac]
   input:  (+ (/ 1 (+ 1 x)) (+ (/ -2 x) (/ 1 (- x 1))))
-  herbie: (* (copysign 1.0 x) (/ 2.0 (* (- (fabs x) 1.0) (fma (fabs x) (fabs x) (fabs x)))))
-  ours:   (/ (+ (/ 1 (- (^ x 2) 1)) (/ -1 (- 1 (^ x 2)))) x)
+  herbie: (* (copysign 1.0 x) (if (<= (+ (/ 1.0 (+ 1.0 (fabs x))) (+ (/ -2.0 (fabs x)) (/ 1.0 (- (fabs x) 1.0)))) -5.0) (+ (/ 1.0 (- (fabs x) 1.0)) (/ (- (/ (fabs x) (+ (fabs x) 1.0)) 2.0) (fabs x))) (/ (/ (/ 2.0 (fabs x)) (fabs x)) (fabs x))))
+  ours:   (/ (+ (neg 2) (+ (/ x (+ 1 x)) (/ (neg x) (- 1 x)))) x)
 
 [bench_arccos]
   input:  (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
-  herbie: (* 2.0 (atan (/ (sqrt (fabs (- 1.0 x))) (sqrt (fabs (/ (fma x x x) x))))))
+  herbie: (* 2.0 (atan (sqrt (/ (+ 0.5 (* x (- (/ 0.5 x) 1.0))) (+ 1.0 x)))))
   ours:   (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
 
 [bench_asymptote_A]
   input:  (+ (/ 1 (+ 1 x)) (/ -1 (- x 1)))
-  herbie: (/ (/ 2.0 (- -1.0 x)) (- x 1.0))
+  herbie: (if (<= (fabs x) 0.01) (fma (fabs x) (cast (! :precision binary32 (cast (+ (! :precision binary64 (fabs x)) (! :precision binary64 (fabs x)))))) 2.0) (/ (/ -2.0 (fabs x)) (fabs x)))
   ours:   (/ -2 (- (^ x 2) 1))
 
 [bench_asymptote_B]
@@ -45,8 +45,8 @@
 
 [bench_asymptote_C]
   input:  (+ (/ x (+ 1 x)) (/ (+ (neg 1) (neg x)) (- x 1)))
-  herbie: (if (<= (+ (/ x (+ 1.0 x)) (/ (+ (- 1.0) (- x)) (- x 1.0))) 1e-7) (/ (- 3.0 (cast (! :precision binary32 (cast (/ 2.0 x))))) (- 1.0 x)) (+ (/ -1.0 (- x 1.0)) (/ (* x (+ (- -2.0 x) x)) (fma x x -1.0))))
-  ours:   (/ (+ (/ (* 3 x) (- x 1)) (/ (+ 1 x) (- (^ x 2) 1))) (+ (neg 1) (neg x)))
+  herbie: (if (<= (+ (/ x (+ 1.0 x)) (/ (+ (- 1.0) (- x)) (- x 1.0))) 5e-15) (/ (- -3.0 (/ 1.0 x)) x) (fma (+ 1.0 x) (/ -1.0 (- x 1.0)) (/ x (+ 1.0 x))))
+  ours:   (+ (/ -1 (- x 1)) (/ (* -2 x) (- (^ x 2) 1)))
 
 [bench_bug333]
   input:  (- (log x) (log (- x 1)))
@@ -65,13 +65,13 @@
 
 [bench_cos2]
   input:  (/ (- 1 (cos x)) (^ x 2))
-  herbie: (if (<= (fabs x) 0.002) (/ 1.0 (+ 2.0 (cast (! :precision binary32 (* 0.16666666666666666 (cast (* (! :precision binary64 (fabs x)) (! :precision binary64 (fabs x))))))))) (/ (/ (- 1.0 (cos (fabs x))) (fabs x)) (fabs x)))
-  ours:   (/ (- 1 (cos x)) (^ x 2))
+  herbie: (if (<= (fabs x) 0.002) (fma (cast (! :precision binary32 (cast (* -0.041666666666666664 (! :precision binary64 (fabs x)))))) (fabs x) 0.5) (/ (* (/ (* (sin (* -0.5 (fabs x))) 2.0) (fabs x)) (sin (fma (+ PI (fabs x)) -0.5 (* PI 0.5)))) (fabs x)))
+  ours:   (+ (/ 1 (^ x 2)) (/ (neg (cos x)) (^ x 2)))
 
 [bench_ena_1]
   input:  (log (/ (+ 1 x) (- 1 x)))
-  herbie: (fma 0.6666666666666666 (cast (! :precision binary32 (cast (* (* x x) x)))) (+ x x))
-  ours:   (/ (log (/ (^ (abs (+ 1 x)) 2) (^ (abs (- 1 x)) 2))) 2)
+  herbie: (* x (fma (cast (! :precision binary32 (cast (* 0.6666666666666666 x)))) x 2.0))
+  ours:   (- (log (abs (+ 1 x))) (log (abs (- 1 x))))
 
 [bench_ena_4b2]
   input:  (- (^ x 2) 1)
@@ -86,22 +86,22 @@
 [bench_ena_4d]
   input:  (- (exp x) 1)
   herbie: (expm1 x)
-  ours:   (/ (+ (neg (* 2 (sinh x))) (neg (* 2 (- (cosh x) 1)))) -2)
+  ours:   (- (sinh x) (* (/ 1 2) (- 2 (* 2 (cosh x)))))
 
 [bench_ena_A]
   input:  (- (sqrt (+ 1 (^ x 2))) 1)
-  herbie: (if (<= (- (sqrt (+ 1.0 (pow (fabs x) 2.0))) 1.0) 100000000.0) (* (fabs x) (/ (fabs x) (- (sqrt (fma (fabs x) (fabs x) 1.0)) -1.0))) (- (fabs x) 1.0))
-  ours:   (- (^ (+ 1 (^ x 2)) (/ 1 2)) 1)
+  herbie: (if (<= (- (sqrt (+ 1.0 (pow (fabs x) 2.0))) 1.0) 200000.0) (/ (* (fabs x) (fabs x)) (- (sqrt (fma (fabs x) (fabs x) 1.0)) -1.0)) (- (fabs x) 1.0))
+  ours:   (- (sqrt (+ 1 (^ x 2))) 1)
 
 [bench_ena_B]
   input:  (/ x (+ 1 (sqrt (+ 1 (^ x 2)))))
-  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 5e+14) (/ (fabs x) (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0)) 1.0))
+  herbie: (* (copysign 1.0 x) (if (<= (/ (fabs x) (+ 1.0 (sqrt (+ 1.0 (pow (fabs x) 2.0))))) 0.0) (/ (fabs x) (+ 1.0 (fabs x))) (/ (fabs x) (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0))))
   ours:   (/ x (+ 1 (sqrt (+ 1 (^ x 2)))))
 
 [bench_exp2]
   input:  (+ (neg 2) (+ (exp x) (exp (neg x))))
-  herbie: (if (<= (+ (- 2.0) (+ (exp x) (exp (- x)))) 1e-10) (fma (* 0.08333333333333333 (* x x)) (* x x) (* x x)) (+ (expm1 x) (expm1 (- x))))
-  ours:   (/ (+ (* 4 (+ (neg 2) (+ (/ (/ 1 4) (exp x)) (* (/ 3 2) (cosh x))))) (exp x)) 4)
+  herbie: (if (<= (+ (- 2.0) (+ (exp x) (exp (- x)))) 1e-7) (* (* x x) (fma x (* 0.08333333333333333 x) 1.0)) (+ (expm1 x) (expm1 (- x))))
+  ours:   (+ (neg 2) (+ (* (/ 1 2) (exp x)) (+ (cosh x) (/ (/ 1 2) (exp x)))))
 
 [bench_exp_neg_sub]
   input:  (exp (- (^ x 2) 1))
@@ -111,7 +111,7 @@
 [bench_exp_w]
   input:  (- (exp x) 1)
   herbie: (expm1 x)
-  ours:   (+ (sinh x) (/ (+ (neg 2) (+ (exp (neg x)) (exp x))) 2))
+  ours:   (+ (sinh x) (/ (- 2 (* 2 (cosh x))) -2))
 
 [bench_expanding_square]
   input:  (- (^ (+ 1 x) 2) 1)
@@ -120,23 +120,23 @@
 
 [bench_expfmod]
   input:  (- (exp x) (exp (- x 1)))
-  herbie: (* (sqrt (exp (+ x x))) 0.6321205588285577)
+  herbie: (* (exp (+ 1.0 x)) 0.23254415793482963)
   ours:   (* (/ 1423408956596761 2251799813685248) (exp x))
 
 [bench_expm1]
   input:  (- (exp x) 1)
   herbie: (expm1 x)
-  ours:   (/ (+ (neg (* 2 (sinh x))) (neg (* 2 (- (cosh x) 1)))) -2)
+  ours:   (- (sinh x) (* (/ 1 2) (- 2 (* 2 (cosh x)))))
 
 [bench_expq2]
   input:  (/ (exp x) (- (exp x) 1))
-  herbie: (/ (exp x) (expm1 x))
+  herbie: (fma (/ -1.0 (- -1.0 (exp x))) (/ (exp x) (expm1 x)) (/ (exp (+ x x)) (expm1 (+ x x))))
   ours:   (/ (exp x) (- (exp x) 1))
 
 [bench_find_atanh]
   input:  (log (/ (+ 1 x) (- 1 x)))
-  herbie: (fma 0.6666666666666666 (cast (! :precision binary32 (cast (* (* x x) x)))) (+ x x))
-  ours:   (+ (log (sqrt (abs (+ 1 x)))) (+ (* (/ 1 2) (log (abs (+ 1 x)))) (neg (log (abs (abs (- 1 x)))))))
+  herbie: (* x (fma (cast (! :precision binary32 (cast (* 0.6666666666666666 x)))) x 2.0))
+  ours:   (- (log (abs (+ 1 x))) (log (abs (- 1 x))))
 
 [bench_fm_repmul]
   input:  (^ a 4)
@@ -160,32 +160,32 @@
 
 [bench_fma_test1]
   input:  (+ (neg 1) (+ (^ (+ 1 (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2) (neg (* (/ 2028240960365167 5070602400912917605986812821504) t))))
-  herbie: (* t (* 3.9999999999999997e-32 t))
+  herbie: (/ t (/ 2.5e+31 t))
   ours:   (+ (neg 1) (+ (^ (+ 1 (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2) (neg (* (/ 2028240960365167 5070602400912917605986812821504) t))))
 
 [bench_fma_test2]
   input:  (- (* 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t) 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632)
   herbie: (fma 1.7e+308 t -1.7e+308)
-  ours:   (* (/ -1 0) (- 1 t))
+  ours:   (- (* 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t) 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632)
 
 [bench_hyp_acosh]
   input:  (log (+ x (sqrt (- (^ x 2) 1))))
-  herbie: (acosh x)
+  herbie: (+ (log (+ x x)) (/ -0.25 (* x x)))
   ours:   (log (+ x (sqrt (- (^ x 2) 1))))
 
 [bench_hyp_acoth]
   input:  (/ (log (/ (+ 1 x) (- x 1))) 2)
-  herbie: (/ (- (/ 0.3333333333333333 (* x x)) -1.0) x)
-  ours:   (/ (* (/ -1 2) (* (log (/ (+ 1 x) (- x 1))) (- 1 x))) (- x 1))
+  herbie: (/ (+ 1.0 (* 0.3333333333333333 (/ 1.0 (* x x)))) x)
+  ours:   (/ (log (/ (+ 1 x) (- x 1))) 2)
 
 [bench_hyp_acsch]
   input:  (log (+ (/ 1 x) (sqrt (+ 1 (/ 1 (^ x 2))))))
   herbie: (asinh (/ 1.0 x))
-  ours:   (+ (log (abs 2)) (+ (log (abs (/ 1 2))) (log (/ (abs (+ 1 (* x (sqrt (+ 1 (/ 1 (^ x 2))))))) (abs x)))))
+  ours:   (log (/ (abs (+ 1 (* x (sqrt (+ 1 (/ 1 (^ x 2))))))) (abs x)))
 
 [bench_hyp_sech]
   input:  (/ 2 (+ (exp x) (exp (neg x))))
-  herbie: (/ 1.0 (cosh x))
+  herbie: (/ 2.0 (+ (exp x) (exp (- x))))
   ours:   (/ 1 (cosh x))
 
 [bench_hyp_sinh]
@@ -200,23 +200,23 @@
 
 [bench_ian_simplification]
   input:  (- (/ 884279719003555 562949953421312) (* 2 (asin (sqrt (/ (- 1 x) 2)))))
-  herbie: (fma (- (/ 1.5707963267948966 (asin (sqrt (fma -0.5 x 0.5)))) 1.0) (asin (sqrt (fma -0.5 x 0.5))) (+ -1.5707963267948966 (acos (sqrt (fma -0.5 x 0.5)))))
-  ours:   (- (acos (sqrt (- (/ 1 2) (* (/ 1 2) x)))) (asin (sqrt (- (/ 1 2) (* (/ 1 2) x)))))
+  herbie: (- (acos (sqrt (fma -0.5 x 0.5))) (asin (sqrt (fma -0.5 x 0.5))))
+  ours:   (+ (/ 884279719003555 281474976710656) (+ (asin (neg (sqrt (* (/ 1 2) (- 1 x))))) (neg (acos (neg (sqrt (* (/ 1 2) (- 1 x))))))))
 
 [bench_invcot]
   input:  (+ (/ 1 x) (/ -1 (tan x)))
-  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 0.00020846645871235023) (/ (fabs x) 3.0) (+ (/ 1.0 (fabs x)) (/ -1.0 (tan (fabs x))))))
-  ours:   (+ (/ 1 x) (/ -1 (tan x)))
+  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 0.00010600157519744232) (/ (fabs x) 3.0) (fma (tan (fabs x)) (/ 1.0 (* (fabs x) (tan (fabs x)))) (/ -1.0 (tan (fabs x))))))
+  ours:   (/ (- 1 (/ x (tan x))) x)
 
 [bench_jcobi_4_called]
   input:  (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
-  herbie: (if (<= (fabs n) 50000000.0) (/ (* (fabs n) (fabs n)) (fma 16.0 (* (fabs n) (fabs n)) -4.0)) 0.0625)
-  ours:   (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
+  herbie: (if (<= (/ (pow n 2.0) (* 4.0 (- (* 4.0 (pow n 2.0)) 1.0))) 0.0) (/ (* n n) (fma 16.0 (* n n) -4.0)) 0.0625)
+  ours:   (/ (* 2 (^ n 2)) (- (* 2 (- (* 16 (^ n 2)) 2)) 4))
 
 [bench_jmat_erf]
   input:  (+ 1 (/ (* -1 (* (+ (/ 2295300911148351 9007199254740992) (/ (- (/ (+ (/ 6401478394306903 4503599627370496) (/ (- (/ (/ 4780145094533421 4503599627370496) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))) (/ 6544414927309881 4503599627370496)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))) (/ 5125037576950889 18014398509481984)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (exp (neg (^ (abs x) 2))))) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))))
-  herbie: (fma (/ 1.0 (pow (- (/ (- 0.284496736 (+ (/ (- (/ 1.061405429 (fma (fabs x) 0.3275911 1.0)) 1.453152027) (* (fma -0.3275911 (fabs x) -1.0) (fma -0.3275911 (fabs x) -1.0))) (/ 1.421413741 (fma (fabs x) 0.3275911 1.0)))) (fma (fabs x) 0.3275911 1.0)) 0.254829592) -1.0)) (/ (exp (- (* x x))) (fma (fabs x) 0.3275911 1.0)) 1.0)
-  ours:   (+ 1 (+ (/ 2295300911148351 (* 9007199254740992 (* (exp (^ (abs x) 2)) (+ (neg 1) (neg (* (/ 1475339155889891 4503599627370496) (abs x))))))) (+ (/ 5125037576950889 (* 18014398509481984 (* (^ (+ (neg 1) (neg (* (/ 1475339155889891 4503599627370496) (abs x)))) 2) (exp (^ (abs x) 2))))) (/ (- (/ (- (/ 4780145094533421 (+ 4503599627370496 (* 1475339155889891 (abs x)))) (/ 6544414927309881 4503599627370496)) (+ (neg 1) (neg (* (/ 1475339155889891 4503599627370496) (abs x))))) (/ 6401478394306903 4503599627370496)) (* (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))) (* (^ (+ (neg 1) (neg (* (/ 1475339155889891 4503599627370496) (abs x)))) 2) (exp (^ (abs x) 2))))))))
+  herbie: (- (+ 1.0 (* 1.061405429 (/ 1.0 (* (* (+ 1.0 (* 0.3275911 (fabs x))) (+ 1.0 (* 0.3275911 (fabs x)))) (* (- (* -0.3275911 (fabs x)) 1.0) (* (- (* -0.3275911 (fabs x)) 1.0) (- (* -0.3275911 (fabs x)) 1.0))))))) (fma 0.254829592 (/ 1.0 (+ 1.0 (* 0.3275911 (fabs x)))) (fma 0.284496736 (/ 1.0 (* (+ 1.0 (* 0.3275911 (fabs x))) (- (* -0.3275911 (fabs x)) 1.0))) (fma 1.421413741 (/ 1.0 (* (+ 1.0 (* 0.3275911 (fabs x))) (* (- (* -0.3275911 (fabs x)) 1.0) (- (* -0.3275911 (fabs x)) 1.0)))) (* 1.453152027 (/ 1.0 (* (+ 1.0 (* 0.3275911 (fabs x))) (* (- (* -0.3275911 (fabs x)) 1.0) (* (- (* -0.3275911 (fabs x)) 1.0) (- (* -0.3275911 (fabs x)) 1.0))))))))))
+  ours:   (+ 1 (+ (/ -5125037576950889 (* 18014398509481984 (* (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))) (* (exp (^ (abs x) 2)) (+ (neg 1) (neg (* (/ 1475339155889891 4503599627370496) (abs x)))))))) (+ (/ 2295300911148351 (* (+ (neg 9007199254740992) (neg (* 2950678311779782 (abs x)))) (exp (^ (abs x) 2)))) (/ (+ (/ 6401478394306903 4503599627370496) (/ (- (/ 4780145094533421 (+ 4503599627370496 (* 1475339155889891 (abs x)))) (/ 6544414927309881 4503599627370496)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (* (^ (+ (neg 1) (neg (* (/ 1475339155889891 4503599627370496) (abs x)))) 3) (exp (^ (abs x) 2)))))))
 
 [bench_kahan_exp]
   input:  (/ (- (exp x) 1) x)
@@ -236,47 +236,47 @@
 [bench_logistic]
   input:  (- (/ 2 (+ 1 (exp (* -2 x)))) 1)
   herbie: (tanh x)
-  ours:   (- (/ 2 (+ 1 (/ 1 (^ (exp x) 2)))) 1)
+  ours:   (- (/ 2 (+ 1 (exp (* -2 x)))) 1)
 
 [bench_logq]
   input:  (log (/ (- 1 eps) (+ 1 eps)))
-  herbie: (- (* (* (* eps eps) -0.6666666666666666) eps) (+ eps eps))
-  ours:   (+ (log 1) (+ (* (/ 1 2) (log (abs (- 1 eps)))) (neg (log (/ (abs (+ 1 eps)) (sqrt (abs (- 1 eps))))))))
+  herbie: (* eps (fma (* eps eps) -0.6666666666666666 -2.0))
+  ours:   (+ (log (/ 1 (abs (+ 1 eps)))) (log (sqrt (^ (abs (- 1 eps)) 2))))
 
 [bench_logs]
   input:  (+ (neg 1) (+ (* (+ 1 n) (log (+ 1 n))) (neg (* n (log n)))))
-  herbie: (if (<= n 10.0) (+ -1.0 (log (/ (pow (- n -1.0) (- n -1.0)) (pow n n)))) (fma -1.0 (log (/ 1.0 n)) (/ 0.5 n)))
-  ours:   (+ (neg 1) (+ (log (+ 1 n)) (neg (* n (log (/ n (+ 1 n)))))))
+  herbie: (if (<= n 0.05) (fma (log (- n -1.0)) (- n -1.0) (- -1.0 (* (log n) n))) (+ (log n) (/ 0.5 n)))
+  ours:   (- (log (/ (+ 1 n) (^ (/ n (+ 1 n)) n))) 1)
 
 [bench_martel_p14]
   input:  (+ 6 (+ (^ x 3) (+ (* 6 (^ x 2)) (* 11 x))))
-  herbie: (fma x (fma (- x -6.0) x 11.0) 6.0)
-  ours:   (+ 3 (+ 3 (+ (^ x 3) (+ (* 6 (^ x 2)) (* 11 x)))))
+  herbie: (fma x (fma x 6.0 (fma x x 11.0)) 6.0)
+  ours:   (+ 6 (+ (^ x 3) (+ (* 6 (^ x 2)) (* 11 x))))
 
 [bench_martel_p15_1]
   input:  (* (+ 1 x) (* (+ 2 x) (+ 3 x)))
-  herbie: (* (+ 1.0 x) (fma x (+ 3.0 x) (+ (+ x x) 6.0)))
-  ours:   (* (+ 1 x) (+ 6 (* x (+ 5 x))))
+  herbie: (* (* (+ 3.0 x) (+ x 1.0)) (+ 2.0 x))
+  ours:   (+ 6 (+ (* 6 x) (* (+ 1 x) (* x (+ 5 x)))))
 
 [bench_martel_p15_2]
   input:  (+ (* (^ x 2) (+ 3 x)) (* 2 (+ 3 (+ (^ x 2) (* 3 x)))))
-  herbie: (fma x (* (- x -2.0) (+ 3.0 x)) 6.0)
+  herbie: (fma x (* (+ 3.0 x) (- x -2.0)) 6.0)
   ours:   (+ 6 (+ (* 6 x) (* (^ x 2) (+ 5 x))))
 
 [bench_martel_p15_3]
   input:  (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie: (fma x (fma (+ x 6.0) x 11.0) 6.0)
+  herbie: (fma 11.0 x (fma (* x x) (+ x 6.0) 6.0))
   ours:   (+ 6 (* x (+ 11 (* x (+ 6 x)))))
 
 [bench_martel_p15_4]
   input:  (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie: (fma x (fma (+ x 6.0) x 11.0) 6.0)
+  herbie: (fma 11.0 x (fma (* x x) (+ x 6.0) 6.0))
   ours:   (+ 6 (* x (+ 11 (* x (+ 6 x)))))
 
 [bench_martel_p6]
   input:  (/ (- x 1) (- (sqrt x) 1))
   herbie: (+ 1.0 (sqrt x))
-  ours:   (+ (/ x (- (sqrt x) 1)) (/ -1 (- (sqrt x) 1)))
+  ours:   (/ (- x 1) (- (sqrt x) 1))
 
 [bench_mathjs_cube]
   input:  (^ x 3)
@@ -285,22 +285,22 @@
 
 [bench_neg_log]
   input:  (neg (log (- (/ 1 x) 1)))
-  herbie: (log (/ x (- 1.0 x)))
-  ours:   (log (/ x (- 1 x)))
+  herbie: (- (log (/ (- 1.0 x) x)))
+  ours:   (neg (log (- (/ 1 x) 1)))
 
 [bench_qlog]
   input:  (/ (log (- 1 x)) (log (+ 1 x)))
-  herbie: (/ (- (* (* x x) -0.5) x) (fma -0.5 (* x x) x))
-  ours:   (log (^ (abs (- x 1)) (/ 1 (log (+ 1 x)))))
+  herbie: (/ (log1p (- x)) (log1p x))
+  ours:   (log (^ (+ 1 x) (/ (log (- 1 x)) (^ (log (+ 1 x)) 2))))
 
 [bench_rosa_poly]
   input:  (- (* (/ 2150310427208497 2251799813685248) x) (* (/ 4647935950575487 36028797018963968) (^ x 3)))
-  herbie: (fma x (* (* -0.12900613773279798 x) x) (* x 0.954929658551372))
+  herbie: (* x (+ 0.954929658551372 (* -0.12900613773279798 (* x x))))
   ours:   (- (* (/ 2150310427208497 2251799813685248) x) (* (/ 4647935950575487 36028797018963968) (^ x 3)))
 
 [bench_rust_acosh]
   input:  (log (+ x (sqrt (- (^ x 2) 1))))
-  herbie: (acosh x)
+  herbie: (+ (log (+ x x)) (/ -0.25 (* x x)))
   ours:   (log (+ x (sqrt (- (^ x 2) 1))))
 
 [bench_rust_acosh2]
@@ -315,8 +315,8 @@
 
 [bench_sidey_2]
   input:  (- 1 (sqrt (* (/ 1 2) (+ 1 (/ 1 (sqrt (+ 1 (^ x 2))))))))
-  herbie: (if (<= (- 1.0 (sqrt (* (/ 1.0 2.0) (+ 1.0 (/ 1.0 (sqrt (+ 1.0 (pow x 2.0)))))))) 1e-11) (* x (* (fma -0.0859375 (* x x) 0.125) x)) (/ (- 0.5 (/ 0.5 (sqrt (fma x x 1.0)))) (- (sqrt (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5)) -1.0)))
-  ours:   (+ (/ (/ 1 2) (+ 1 (sqrt (+ (/ 1 2) (/ (/ 1 2) (sqrt (+ 1 (^ x 2)))))))) (/ -1 (* 2 (* (sqrt (+ 1 (^ x 2))) (+ 1 (sqrt (+ (/ 1 2) (/ (/ 1 2) (sqrt (+ 1 (^ x 2)))))))))))
+  herbie: (if (<= (/ 1.0 (sqrt (+ 1.0 (pow x 2.0)))) 0.99998) (/ 1.0 (/ (- -1.0 (sqrt (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5))) (- (/ 0.5 (sqrt (fma x x 1.0))) 0.5))) (fma x (* 0.125 x) (* (* -0.0859375 (* x x)) (* x x))))
+  ours:   (- 1 (sqrt (/ (+ 1 (/ 1 (^ (+ 1 (^ x 2)) (/ 1 2)))) (sqrt 4))))
 
 [bench_sqrt_A]
   input:  (- (sqrt (+ 1 x)) (sqrt x))
@@ -325,12 +325,12 @@
 
 [bench_sqrt_B]
   input:  (- (sqrt x) (sqrt (- x 1)))
-  herbie: (/ 1.0 (fma x (/ (sqrt x) x) (sqrt (- x 1.0))))
+  herbie: (/ 1.0 (+ (sqrt (- x 1.0)) (sqrt x)))
   ours:   (/ 1 (+ (sqrt x) (sqrt (- x 1))))
 
 [bench_sqrt_C]
   input:  (- (sqrt (+ 1 (^ x 2))) x)
-  herbie: (if (<= x -3387506822706.1924) (* -2.0 x) (if (<= x 203.31322058727807) (exp (asinh (- x))) (/ (- 0.5 (/ 0.125 (* x x))) x)))
+  herbie: (if (<= x -0.3931359942648686) (- (+ x x)) (if (<= x 197349.91531890284) (/ 1.0 (+ (sqrt (fma x x 1.0)) x)) (/ 0.5 x)))
   ours:   (- (sqrt (+ 1 (^ x 2))) x)
 
 [bench_sqrt_D]
@@ -340,22 +340,22 @@
 
 [bench_sqrt_E]
   input:  (/ (- 1 (sqrt (- 1 x))) x)
-  herbie: (/ -1.0 (- -1.0 (sqrt (- 1.0 x))))
-  ours:   (+ (/ (/ 1 2) x) (/ (- (/ 1 2) (sqrt (- 1 x))) x))
+  herbie: (/ 1.0 (- (sqrt (- 1.0 x)) -1.0))
+  ours:   (/ (- 1 (sqrt (- 1 x))) x)
 
 [bench_sqrt_times]
   input:  (* (sqrt (- x 1)) (sqrt x))
-  herbie: (* (sqrt (- x 1.0)) (sqrt x))
-  ours:   (* (sqrt x) (^ (- x 1) (/ 1 2)))
+  herbie: (* (sqrt (- x 1.0)) (/ 1.0 (pow x -0.5)))
+  ours:   (* (sqrt (- x 1)) (sqrt x))
 
 [bench_sqrtexp]
   input:  (sqrt (/ (- (exp (* 2 x)) 1) (- (exp x) 1)))
   herbie: (sqrt (- (exp x) -1.0))
-  ours:   (* (sqrt (abs (- 1 (^ (exp 2) x)))) (abs (/ 1 (^ (abs (- (exp x) 1)) (/ 1 2)))))
+  ours:   (* (sqrt (abs (* (- (exp x) 1) (- (^ (exp 2) x) 1)))) (sqrt (abs (/ 1 (abs (^ (- (exp x) 1) 2))))))
 
 [bench_tan_example]
   input:  (- (tan (+ (/ 3022314549036573 302231454903657293676544) x)) (tan x))
-  herbie: (/ 1e-8 (fma (cos x) (* (cos x) (cos 1e-8)) (* (cos x) (* (sin -1e-8) (sin x)))))
+  herbie: (* (sin 1e-8) (/ 1.0 (fma (cos x) (* (sin -1e-8) (sin x)) (* (cos x) (* (cos -1e-8) (cos x))))))
   ours:   (- (tan (+ (/ 3022314549036573 302231454903657293676544) x)) (tan x))
 
 [bench_tanhf]
@@ -365,17 +365,17 @@
 
 [bench_tea_20]
   input:  (* (/ -5734161139222659 4503599627370496) (log (/ (+ (exp (* (/ 884279719003555 1125899906842624) f)) (exp (* (/ -884279719003555 1125899906842624) f))) (- (exp (* (/ 884279719003555 1125899906842624) f)) (exp (* (/ -884279719003555 1125899906842624) f))))))
-  herbie: (if (<= (* (/ -5734161139222659.0 4503599627370496.0) (log (/ (+ (exp (* (/ 884279719003555.0 1125899906842624.0) f)) (exp (* (/ -884279719003555.0 1125899906842624.0) f))) (- (exp (* (/ 884279719003555.0 1125899906842624.0) f)) (exp (* (/ -884279719003555.0 1125899906842624.0) f)))))) -0.05) (* (/ -5734161139222659.0 4503599627370496.0) (log (fma (exp (* f 0.7853981633974483)) (/ -1.0 (* 2.0 (sinh (* -0.7853981633974483 f)))) (/ (exp (* -0.7853981633974483 f)) (* 2.0 (sinh (* f 0.7853981633974483))))))) (* (/ 0.0 4503599627370496.0) (log (* 0.2617993877991494 f))))
-  ours:   (* (/ -5734161139222659 4503599627370496) (log (/ (cosh (* (/ 884279719003555 1125899906842624) f)) (sinh (* (/ 884279719003555 1125899906842624) f)))))
+  herbie: (if (<= f 257.834281498448) (* -1.2732395447351628 (log (/ (+ (/ 1.0 (exp (* -0.7853981633974483 f))) (exp (* -0.7853981633974483 f))) (* 2.0 (sinh (* f 0.7853981633974483)))))) (* (/ -5734161139222659.0 4503599627370496.0) (log (/ (+ 1.0 (exp (* (/ -884279719003555.0 1125899906842624.0) f))) (- 1.0 (exp (* (/ -884279719003555.0 1125899906842624.0) f)))))))
+  ours:   (* (/ 5734161139222659 4503599627370496) (log (/ (abs (* 2 (sinh (* (/ 884279719003555 1125899906842624) f)))) (* 2 (cosh (* (/ 884279719003555 1125899906842624) f))))))
 
 [bench_trig_B]
   input:  (/ (- 1 (^ (tan x) 2)) (+ 1 (^ (tan x) 2)))
-  herbie: (cos (+ x x))
+  herbie: (* (cos (+ x x)) 1.0)
   ours:   (/ (- 1 (^ (tan x) 2)) (+ 1 (^ (tan x) 2)))
 
 [bench_x_over_xsq_plus_1]
   input:  (/ x (+ 1 (^ x 2)))
-  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 58088107.88305062) (/ (fabs x) (fma (fabs x) (fabs x) 1.0)) (/ 1.0 (fabs x))))
+  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 197349.91531890284) (/ (fabs x) (fma (fabs x) (fabs x) 1.0)) (/ 1.0 (fabs x))))
   ours:   (/ x (+ 1 (^ x 2)))
 
 [bench_x_poly]

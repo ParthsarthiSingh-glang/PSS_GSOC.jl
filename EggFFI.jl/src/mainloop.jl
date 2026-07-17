@@ -39,6 +39,48 @@ function rewrite_variations(expr::Num; warn::Bool = true)::Vector{Num}
 end
 
 """
+    rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String,Num}; warn::Bool=true) -> Vector{Vector{Num}}
+
+Inserts EVERY given expr as a separate root into ONE SHARED egraph
+saturates ONCE, then extracts variations per-root afterward.
+
+"""
+function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; warn::Bool = true)::Vector{Vector{Num}}
+    isempty(exprs) && return Vector{Num}[]
+
+    ptr = egraph_create(to_sexpr(exprs[1]))
+    root_ids = UInt32[egraph_root_id(ptr)]
+    for expr in exprs[2:end]
+        id = insert_nodewise!(ptr, parse_sexpr(to_sexpr(expr)))
+        egraph_add_root(ptr, id)
+        push!(root_ids, id)
+    end
+
+    egraph_saturate!(ptr)
+    if warn && egraph_unsound(ptr)
+        @warn "unsoundness detected in the egraph" exprs=exprs
+    end
+
+    results = Vector{Num}[]
+    for id in root_ids
+        canonical = egraph_find(ptr, id)
+        variations = Num[]
+        for s in egraph_eclass_enodes(ptr, canonical)
+            try
+                push!(variations, from_sexpr(s, vars))
+            # please look in this , this is temp ig , due to Rival ops and our ops diff 
+            catch e
+                e isa KeyError || @warn "unexpected conversion failure" enode=s exception=e
+            end
+        end
+        push!(results, variations)
+    end
+
+    egraph_destroy(ptr)
+    return results
+end
+
+"""
     run_iteration!(table::AltTable, vars) -> AltTable
 
 """
@@ -49,9 +91,10 @@ function run_iteration!(table::AltTable, vars)::AltTable
     pending_exprs = [table.expr_of[k] for k in pending_keys]
 
     var_dict = Dict{String, Num}(string(v) => Num(v) for v in vars)
+    variations_per_alt = rewrite_variations_batch(pending_exprs, var_dict)
     candidates = Num[]
-    for expr in pending_exprs
-        append!(candidates, rewrite_variations(expr, var_dict))
+    for vs in variations_per_alt
+        append!(candidates, vs)
     end
 
     errss, costs = atab_eval_altns(table, candidates, vars)
