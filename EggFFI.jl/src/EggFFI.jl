@@ -7,8 +7,12 @@ using SymbolicUtils
 # compile-preprocessing - fabs/copysign must be registered as a symbolic function so 
 # to_sexpr's nameof(operation(expr)) produces "fabs"/"copysign" matching
 # MathLang node names.
+
+import Base: fma, muladd, copysign
 @register_symbolic fabs(x::Real)
 @register_symbolic copysign(x::Real, y::Real)
+@register_symbolic fma(x::Real, y::Real, z::Real)
+@register_symbolic muladd(x::Real, y::Real, z::Real)
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(

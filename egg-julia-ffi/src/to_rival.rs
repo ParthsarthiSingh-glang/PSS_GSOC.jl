@@ -49,7 +49,9 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
             let name = sym.as_str();
             let a = || Box::new(mathlang_to_rival(expr, args[0]));
             let b = || Box::new(mathlang_to_rival(expr, args[1]));
+            let c = || Box::new(mathlang_to_rival(expr, args[2]));
             match (name, args.len()) {
+                ("fma", 3) => Expr::Fma(a(), b(), c()),
                 ("sin", 1)  => Expr::Sin(a()),
                 ("cos", 1)  => Expr::Cos(a()),
                 ("tan", 1)  => Expr::Tan(a()),

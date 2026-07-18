@@ -182,6 +182,10 @@ function build_expr(tree, vars::Dict{String, Num})::Num
         end
         return build_expr(args[1], vars) ^ build_expr(args[2], vars)
     end
+    if op == "fma" || op == "muladd"
+        f = op == "fma" ? fma : muladd
+        return f(build_expr(args[1], vars), build_expr(args[2], vars), build_expr(args[3], vars))
+    end
     f = OP_MAP[op]
     children = [build_expr(a, vars) for a in args]
     return Num(TermInterface.maketerm(Symbolics.SymbolicT, f, Symbolics.unwrap.(children), nothing))

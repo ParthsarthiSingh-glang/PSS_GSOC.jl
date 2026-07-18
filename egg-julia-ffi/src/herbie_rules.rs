@@ -518,5 +518,8 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("fp-cancel-sub-sign-inv"; "(- ?a (* ?b ?c))" => "(+ ?a (* (neg ?b) ?c))"),
     rewrite!("tan-+PI-rev"; "(tan ?x)" => "(tan (+ ?x PI))"),
 
+    rewrite!("fma-lower"; "(+ (* ?x ?y) ?z)" => "(fma ?x ?y ?z)"),
+    rewrite!("fma-lift"; "(fma ?x ?y ?z)" => "(+ (* ?x ?y) ?z)"),
+
     ]
 }
