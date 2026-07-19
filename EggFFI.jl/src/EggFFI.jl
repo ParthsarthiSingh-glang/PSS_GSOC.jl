@@ -23,6 +23,7 @@ include("sampling.jl")
 include("pareto.jl")
 include("alttable.jl")
 include("mainloop.jl")
+include("taylor.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
@@ -46,6 +47,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        atab_add_altns!, atab_min_errors,
        NUM_ITERATIONS, rewrite_variations, rewrite_variations_batch, run_iteration!, run_improve!, extract!,
        ImprovementReport, start_score, end_score, run_improve_with_report,
+       taylor_expand,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
