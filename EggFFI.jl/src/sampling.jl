@@ -76,7 +76,8 @@ function flonums_between(a::Float64, b::Float64)
     a_int = a_int < 0 ? (typemin(Int64) - a_int) : a_int
     b_int = b_int < 0 ? (typemin(Int64) - b_int) : b_int
 
-    return abs(b_int - a_int)
+    dist = abs(Int128(b_int) - Int128(a_int))
+    return dist > typemax(Int64) ? typemax(Int64) : Int64(dist)
 end
 
 """

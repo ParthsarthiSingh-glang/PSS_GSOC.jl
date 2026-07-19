@@ -97,6 +97,15 @@ function run_iteration!(table::AltTable, vars)::AltTable
         append!(candidates, vs)
     end
 
+    # to be decided 
+    # for expr in pending_exprs
+    #     try
+    #         append!(candidates, taylor_variations(expr, Num[Num(v) for v in vars]))
+    #     catch e
+    #         @warn "run_iteration!: taylor_variations failed" expr=expr exception=e
+    #     end
+    # end
+
     errss, costs = atab_eval_altns(table, candidates, vars)
     atab_add_altns!(table, candidates, errss, costs)
 
