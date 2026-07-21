@@ -1,468 +1,546 @@
 [bench_2atan]
   input:  (- (atan (+ 1 N)) (atan N))
-  herbie: (atan2 1.0 (+ 1.0 (fma N N N)))
-  ours:   (atan 1 (+ 1 (fma N N N)))
-  ours score (8000pt held-out): 14.967970092470825 -> 0.40441485313707964
+  herbie ans: (atan2 1.0 (fma N N (+ N 1.0)))
+  our ans:    (atan 1 (+ 1 (fma N N N)))
+  herbie improvement: 14.862847491228528 -> 0.3772165266593353
+  our improvement:    14.862847491228528 -> 0.3767165266593353
 
 [bench_2cbrt]
   input:  (- (cbrt (+ 1 x)) (cbrt x))
-  herbie: (if (<= (- (cbrt (+ 1.0 x)) (cbrt x)) 0.0) (/ 1.0 (* x (+ (cbrt (/ (/ (- x -2.0) x) x)) (* 2.0 (/ 1.0 (cbrt x)))))) (/ 1.0 (+ (+ (cbrt (fma x x x)) (cbrt (* x x))) (cbrt (fma x (- x -2.0) 1.0)))))
-  ours:   (- (cbrt (+ 1 x)) (cbrt x))
-  ours score (8000pt held-out): 28.82592517795489 -> 28.82592517795489
+  herbie ans: (if (<= (- (cbrt (+ 1.0 x)) (cbrt x)) 0.002) (/ 1.0 (fma x (/ 1.0 (cbrt x)) (* x (+ (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x))))) (+ (cbrt (+ (/ 1.0 x) (/ 1.0 (* x x)))) (* 0.3333333333333333 (/ 1.0 (* (* x (* x x)) (* (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x))))) (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x)))))))))))))) (fma -0.3333333333333333 (* 3.0 (cbrt x)) (cbrt (+ x 1.0))))
+  our ans:    (/ (- (/ (* (/ 3 4) (fma (cbrt (+ 1 x)) (- (cbrt (+ (neg 1) (neg x))) (cbrt x)) (neg (^ x (/ 2 3))))) (fma (cbrt (+ 1 x)) (- (cbrt x) (cbrt (+ (neg 1) (neg x)))) (^ x (/ 2 3)))) (/ 1 4)) (fma (cbrt (+ 1 x)) (- (cbrt (+ (neg 1) (neg x))) (cbrt x)) (neg (^ x (/ 2 3)))))
+  herbie improvement: 29.31900753066465 -> N/A(regime)
+  our improvement:    29.31900753066465 -> 2.2535250717459885
 
 [bench_2frac]
   input:  (+ (/ 1 (+ 1 x)) (/ -1 x))
-  herbie: (/ (/ 1.0 x) (- -1.0 x))
-  ours:   (/ (+ 1 (+ (/ 1 x) (/ (+ 1 x) (+ (neg 1) (neg x))))) (+ (neg 1) (neg x)))
-  ours score (8000pt held-out): 14.627110750409956 -> 0.0705
+  herbie ans: (/ (/ -1.0 (- x -1.0)) x)
+  our ans:    (/ -1 (+ x (^ x 2)))
+  herbie improvement: 14.66390069511874 -> 0.382515534259253
+  our improvement:    14.66390069511874 -> 0.3833174139466629
 
 [bench_2isqrt]
   input:  (+ (/ 1 (sqrt x)) (/ -1 (sqrt (+ 1 x))))
-  herbie: (if (<= (+ (/ 1.0 (sqrt x)) (/ -1.0 (sqrt (+ 1.0 x)))) 1e-16) (/ (/ (- 0.5 (/ 0.375 x)) x) (sqrt x)) (+ (sqrt (/ 1.0 x)) (/ -1.0 (sqrt (+ 1.0 x)))))
-  ours:   (+ (/ 1 (* (^ x (/ 1 2)) (+ 1 x))) (/ (- (sqrt x) (sqrt (+ 1 x))) (+ 1 x)))
-  ours score (8000pt held-out): 20.135611815635762 -> 17.484704817203657
+  herbie ans: (if (<= x 52571111780125.3) (/ (/ (- (- x -1.0) x) (fma (- x) (/ -1.0 (sqrt x)) (sqrt (- x -1.0)))) (sqrt (fma x x x))) (* 0.5 (/ (sqrt (/ 1.0 x)) x)))
+  our ans:    (/ (- (sqrt (/ (+ 1 x) x)) 1) (sqrt (+ 1 x)))
+  herbie improvement: 20.332533790737994 -> N/A(regime)
+  our improvement:    20.332533790737994 -> 20.283455441737573
 
 [bench_2sqrt]
   input:  (- (sqrt (+ 1 x)) (sqrt x))
-  herbie: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
-  ours:   (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
-  ours score (8000pt held-out): 29.648477207504296 -> 0.15867236875252405
+  herbie ans: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
+  our ans:    (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
+  herbie improvement: 30.09244115589125 -> 0.15923120312590147
+  our improvement:    30.09244115589125 -> 0.15923120312590147
 
 [bench_3frac]
   input:  (+ (/ 1 (+ 1 x)) (+ (/ -2 x) (/ 1 (- x 1))))
-  herbie: (/ 2.0 (* (- -1.0 x) (fma (- x) x x)))
-  ours:   (/ (fma (- x 1) (- (/ x (+ 1 x)) 2) x) (- (^ x 2) x))
-  ours score (8000pt held-out): 9.851984311156198 -> 9.817772595633556
+  herbie ans: (* (copysign 1.0 x) (if (<= (+ (/ 1.0 (+ 1.0 (fabs x))) (+ (/ -2.0 (fabs x)) (/ 1.0 (- (fabs x) 1.0)))) -200000000.0) (- (/ -2.0 (fabs x)) (+ (fabs x) (fabs x))) (/ (/ (/ 2.0 (fabs x)) (fabs x)) (fabs x))))
+  our ans:    (+ (/ -2 (fma x x -1)) (+ (/ 2 (* x (fma x x -1))) (/ 2 (fma x x -1))))
+  herbie improvement: 9.930007856434026 -> N/A(regime)
+  our improvement:    9.930007856434026 -> 0.33980814312809754
 
 [bench_arccos]
   input:  (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
-  herbie: (* 2.0 (atan (/ (sqrt (fabs (- (+ x 1.0) (* (+ x 1.0) x)))) (fabs (+ x 1.0)))))
-  ours:   (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
-  ours score (8000pt held-out): 0.012875 -> 0.012875
+  herbie ans: (* 2.0 (atan (sqrt (/ (- 1.0 x) (+ 1.0 x)))))
+  our ans:    (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
+  herbie improvement: 0.013625 -> 0.013625
+  our improvement:    0.013625 -> 0.013625
 
 [bench_asymptote_A]
   input:  (+ (/ 1 (+ 1 x)) (/ -1 (- x 1)))
-  herbie: (if (<= (fabs x) 2e-9) 2.0 (/ (/ -2.0 (fabs x)) (fabs x)))
-  ours:   (/ (+ (/ -1 (+ 1 x)) (/ 1 (+ (neg 1) (neg x)))) (- x 1))
-  ours score (8000pt held-out): 14.73269985366074 -> 0.08375
+  herbie ans: (if (<= (+ (/ 1.0 (+ 1.0 x)) (/ -1.0 (- x 1.0))) 0.0) (/ (/ -2.0 x) x) (fma x (+ x x) 2.0))
+  our ans:    (+ (/ (/ -1 2) (fma x x -1)) (/ (/ -3 2) (fma x x -1)))
+  herbie improvement: 14.156205056850096 -> N/A(regime)
+  our improvement:    14.156205056850096 -> 0.35736824755291
 
 [bench_asymptote_B]
   input:  (+ (/ 1 (- x 1)) (/ x (+ 1 x)))
-  herbie: (+ (/ 1.0 (- x 1.0)) (/ x (+ 1.0 x)))
-  ours:   (+ (/ 1 (- x 1)) (/ x (+ 1 x)))
-  ours score (8000pt held-out): 0.012125 -> 0.012125
+  herbie ans: (+ (/ 1.0 (- x 1.0)) (/ x (+ 1.0 x)))
+  our ans:    (+ (/ 1 (- x 1)) (/ x (+ 1 x)))
+  herbie improvement: 0.01125 -> 0.01125
+  our improvement:    0.01125 -> 0.01125
 
 [bench_asymptote_C]
   input:  (+ (/ x (+ 1 x)) (/ (+ (neg 1) (neg x)) (- x 1)))
-  herbie: (if (<= (+ (/ x (+ 1.0 x)) (/ (+ (- 1.0) (- x)) (- x 1.0))) 0.0) (/ (- (/ -1.0 x) 3.0) x) (/ (fma -3.0 x -1.0) (+ (- (fma x x x) x) -1.0)))
-  ours:   (/ (- (/ (* 2 x) (+ (neg 1) (neg x))) 1) (- x 1))
-  ours score (8000pt held-out): 29.559736718479616 -> 0.03429248125036058
+  herbie ans: (if (<= (+ (/ x (+ 1.0 x)) (/ (+ (- 1.0) (- x)) (- x 1.0))) 5e-13) (- (/ -3.0 x) (/ 1.0 (* x x))) (/ (fma -3.0 x -1.0) (fma x x -1.0)))
+  our ans:    (+ (/ x (+ 1 x)) (+ (/ x (- 1 x)) (/ -1 (- x 1))))
+  herbie improvement: 28.909622374346505 -> N/A(regime)
+  our improvement:    28.909622374346505 -> 25.225912690402744
 
 [bench_bug333]
   input:  (- (log x) (log (- x 1)))
-  herbie: (- (log1p (/ -1.0 x)))
-  ours:   (neg (log (+ 1 (/ -1 x))))
-  ours score (8000pt held-out): 58.79881164006965 -> 58.51961841082805
+  herbie ans: (/ 1.0 (* x (- 1.0 (cast (! :precision binary32 (cast (/ 0.5 x)))))))
+  our ans:    (neg (log1p (/ -1 x)))
+  herbie improvement: 58.77569315520597 -> 0.6393056284454374
+  our improvement:    58.77569315520597 -> 0.014448120312590145
 
 [bench_bug366_a]
   input:  (/ (sin x) (- 1 (cos x)))
-  herbie: (/ (cos (* -0.5 x)) (sin (* 0.5 x)))
-  ours:   (/ (sin x) (- 1 (cos x)))
-  ours score (8000pt held-out): 32.062929364576036 -> 32.062929364576036
+  herbie ans: (/ 1.0 (tan (* 0.5 x)))
+  our ans:    (/ (sin x) (- 1 (cos x)))
+  herbie improvement: 31.90949924299433 -> 0.17025
+  our improvement:    31.90949924299433 -> 31.90949924299433
 
 [bench_bug366_b]
   input:  (/ (- 1 (cos x)) (sin x))
-  herbie: (tan (* 0.5 x))
-  ours:   (tan (* (/ 1 2) x))
-  ours score (8000pt held-out): 30.93263118803703 -> 0.019
+  herbie ans: (tan (* 0.5 x))
+  our ans:    (tan (* (/ 1 2) x))
+  herbie improvement: 29.750629905602647 -> 0.02
+  our improvement:    29.750629905602647 -> 0.02
 
 [bench_cos2]
   input:  (/ (- 1 (cos x)) (^ x 2))
-  herbie: (if (<= (fabs x) 0.005) (+ 0.5 (* -0.041666666666666664 (cast (! :precision binary32 (cast (* (! :precision binary64 (fabs x)) (! :precision binary64 (fabs x)))))))) (/ (* (/ 1.0 (fabs x)) (- 1.0 (cos (fabs x)))) (fabs x)))
-  ours:   (/ (- 1 (cos x)) (^ x 2))
-  ours score (8000pt held-out): 31.576911219973617 -> 31.576911219973617
+  herbie ans: (if (<= (fabs x) 0.0004) (fma (fabs x) (* -0.041666666666666664 (fabs x)) 0.5) (/ (/ (- 1.0 (cos (fabs x))) (fabs x)) (fabs x)))
+  our ans:    (/ (+ (/ 1 x) (/ (neg (cos x)) x)) x)
+  herbie improvement: 31.427443623597657 -> N/A(regime)
+  our improvement:    31.427443623597657 -> 30.7596304606154
 
 [bench_ena_1]
   input:  (log (/ (+ 1 x) (- 1 x)))
-  herbie: (fma 0.6666666666666666 (* (* x x) x) (+ x x))
-  ours:   (- (log (abs (+ 1 x))) (log (abs (- 1 x))))
-  ours score (8000pt held-out): 58.67384311846235 -> 58.666798378873835
+  herbie ans: (* x (fma (* x x) 0.6666666666666666 2.0))
+  our ans:    (- (log (abs (+ 1 x))) (log (abs (- 1 x))))
+  herbie improvement: 58.64801200957288 -> 0.28127906845232725
+  our improvement:    58.64801200957288 -> 58.63503337440427
 
 [bench_ena_4b2]
   input:  (- (^ x 2) 1)
-  herbie: (fma x x -1.0)
-  ours:   (- (^ x 2) 1)
-  ours score (8000pt held-out): 0.00937215999043749 -> 0.00937215999043749
+  herbie ans: (fma x x -1.0)
+  our ans:    (fma x x -1)
+  herbie improvement: 0.01025 -> 0.008
+  our improvement:    0.01025 -> 0.008
 
 [bench_ena_4b5]
   input:  (- (^ x 5) 1)
-  herbie: (- (pow x 5.0) 1.0)
-  ours:   (- (^ x 5) 1)
-  ours score (8000pt held-out): 0.028875 -> 0.028875
+  herbie ans: (- (pow x 5.0) 1.0)
+  our ans:    (/ (- 2 (* 2 (^ x 5))) -2)
+  herbie improvement: 0.041198120312590146 -> 0.041198120312590146
+  our improvement:    0.041198120312590146 -> 0.025198120312590146
 
 [bench_ena_4d]
   input:  (- (exp x) 1)
-  herbie: (/ (tanh (* 0.5 x)) (/ -1.0 (- -1.0 (exp x))))
-  ours:   (fma (* 2 (sinh x)) (/ 1 2) (- (cosh x) 1))
-  ours score (8000pt held-out): 29.257314771369614 -> 16.307339908435125
+  herbie ans: (* (+ (sqrt (exp x)) 1.0) (expm1 (* 0.5 x)))
+  our ans:    (expm1 x)
+  herbie improvement: 29.192592737483572 -> 0.012094360937770433
+  our improvement:    29.192592737483572 -> 0.00025
 
 [bench_ena_A]
   input:  (- (sqrt (+ 1 (^ x 2))) 1)
-  herbie: (if (<= (- (sqrt (+ 1.0 (pow (fabs x) 2.0))) 1.0) 10000000.0) (* (fabs x) (/ (fabs x) (- (sqrt (fma (fabs x) (fabs x) 1.0)) -1.0))) (- (fabs x) 1.0))
-  ours:   (- (^ (+ 1 (^ x 2)) (/ 1 2)) 1)
-  ours score (8000pt held-out): 31.269767217450323 -> 31.268862610217784
+  herbie ans: (if (<= (- (sqrt (+ 1.0 (pow (fabs x) 2.0))) 1.0) 200000.0) (* (* 2.0 (/ (fabs x) (sqrt (* 2.0 (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0))))) (/ (fabs x) (sqrt (* 2.0 (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0))))) (- (fabs x) 1.0))
+  our ans:    (/ (^ (sinh (* (/ 1 2) (asinh x))) 2) (/ 1 2))
+  herbie improvement: 30.42426256591292 -> N/A(regime)
+  our improvement:    30.42426256591292 -> 3.015338346744478
 
 [bench_ena_B]
   input:  (/ x (+ 1 (sqrt (+ 1 (^ x 2)))))
-  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 10000000.0) (* (fabs x) (/ (fabs x) (fma (sqrt (fma (fabs x) (fabs x) 1.0)) (fabs x) (fabs x)))) (/ (- (fabs x) 1.0) (fabs x))))
-  ours:   (/ x (+ 1 (sqrt (+ 1 (^ x 2)))))
-  ours score (8000pt held-out): 15.892556455068885 -> 15.892556455068885
+  herbie ans: (* (copysign 1.0 x) (if (<= (fabs x) 200000.0) (/ (* (fabs x) (- (* -0.5 (* (fabs x) (fabs x))) 2.0)) (* (- (* -0.5 (* (fabs x) (fabs x))) 2.0) (- (sqrt (fma (fabs x) (fabs x) 1.0)) -1.0))) (/ (fabs x) (+ 1.0 (fabs x)))))
+  our ans:    (/ x (+ 1 (cosh (asinh x))))
+  herbie improvement: 15.728612034878214 -> N/A(regime)
+  our improvement:    15.728612034878214 -> 2.986847532870582
 
 [bench_exp2]
   input:  (+ (neg 2) (+ (exp x) (exp (neg x))))
-  herbie: (if (<= (+ (- 2.0) (+ (exp (fabs x)) (exp (- (fabs x))))) 1e-13) (* (fabs x) (fma (* (fabs x) (fabs x)) (* 0.08333333333333333 (fabs x)) (fabs x))) (fma (+ (sqrt (exp (fabs x))) 1.0) (expm1 (* (fabs x) 0.5)) (expm1 (- (fabs x)))))
-  ours:   (+ (neg 2) (+ (exp x) (/ 1 (exp x))))
-  ours score (8000pt held-out): 14.865710656363195 -> 14.859277722135193
+  herbie ans: (if (<= (+ (- 2.0) (+ (exp x) (exp (- x)))) 5e-8) (* (* x x) (+ 1.0 (cast (! :precision binary32 (* 0.08333333333333333 (cast (* x x))))))) (- (/ 1.0 (pow (expm1 x) -1.0)) (- (expm1 (- x)))))
+  our ans:    (+ (neg 2) (+ (exp x) (exp (neg x))))
+  herbie improvement: 14.8653414624581 -> N/A(regime)
+  our improvement:    14.8653414624581 -> 14.8653414624581
 
 [bench_exp_neg_sub]
   input:  (exp (- (^ x 2) 1))
-  herbie: (exp (fma x x -1.0))
-  ours:   (exp (- (^ x 2) 1))
-  ours score (8000pt held-out): 0.008368806669014395 -> 0.008368806669014395
+  herbie ans: (exp (- (fma x x -0.5) 0.5))
+  our ans:    (exp (- (^ x 2) 1))
+  herbie improvement: 0.009351630414696476 -> 0.009476630414696477
+  our improvement:    0.009351630414696476 -> 0.009351630414696476
 
 [bench_exp_w]
   input:  (- (exp x) 1)
-  herbie: (/ (tanh (* 0.5 x)) (/ -1.0 (- -1.0 (exp x))))
-  ours:   (fma (* 2 (sinh x)) (/ 1 2) (- (cosh x) 1))
-  ours score (8000pt held-out): 29.40590929788955 -> 16.186327563255357
+  herbie ans: (* (+ (sqrt (exp x)) 1.0) (expm1 (* 0.5 x)))
+  our ans:    (expm1 x)
+  herbie improvement: 29.60035498423277 -> 0.014344360937770433
+  our improvement:    29.60035498423277 -> 0.000375
 
 [bench_expanding_square]
   input:  (- (^ (+ 1 x) 2) 1)
-  herbie: (fma x x (+ x x))
-  ours:   (- (^ (+ 1 x) 2) 1)
-  ours score (8000pt held-out): 29.682710300800075 -> 29.682710300800075
+  herbie ans: (fma x x (+ x x))
+  our ans:    (fma x x (* 2 x))
+  herbie improvement: 29.471964447230185 -> 0.016
+  our improvement:    29.471964447230185 -> 0.016
 
 [bench_expfmod]
   input:  (- (exp x) (exp (- x 1)))
-  herbie: (* (exp x) 0.6321205588285577)
-  ours:   (* (/ 1423408956596761 2251799813685248) (exp x))
-  ours score (8000pt held-out): 0.4388231203125902 -> 0.013
+  herbie ans: (* (exp (- x 1.0)) (- E 1.0))
+  our ans:    (* (/ 1423408956596761 2251799813685248) (exp x))
+  herbie improvement: 0.5068231203125901 -> 0.021856203125901443
+  our improvement:    0.5068231203125901 -> 0.009625
 
 [bench_expm1]
   input:  (- (exp x) 1)
-  herbie: (/ (tanh (* 0.5 x)) (/ -1.0 (- -1.0 (exp x))))
-  ours:   (+ (neg 1) (+ (^ (cosh (* (/ 1 2) x)) 2) (+ (* 2 (* (cosh (* (/ 1 2) x)) (sinh (* (/ 1 2) x)))) (^ (sinh (* (/ 1 2) x)) 2))))
-  ours score (8000pt held-out): 29.21046193525767 -> 15.981031929397544
+  herbie ans: (* (+ (sqrt (exp x)) 1.0) (expm1 (* 0.5 x)))
+  our ans:    (expm1 x)
+  herbie improvement: 28.46603931187974 -> 0.015584962500721156
+  our improvement:    28.46603931187974 -> 0.00025
 
 [bench_expq2]
   input:  (/ (exp x) (- (exp x) 1))
-  herbie: (* (exp x) (/ 1.0 (expm1 x)))
-  ours:   (/ (exp x) (- (exp x) 1))
-  ours score (8000pt held-out): 41.46186895921912 -> 41.46186895921912
+  herbie ans: (/ -1.0 (expm1 (- x)))
+  our ans:    (/ (exp x) (expm1 x))
+  herbie improvement: 41.535828496481905 -> 0.008875
+  our improvement:    41.535828496481905 -> 0.4779693609377705
 
 [bench_find_atanh]
   input:  (log (/ (+ 1 x) (- 1 x)))
-  herbie: (fma 0.6666666666666666 (* (* x x) x) (+ x x))
-  ours:   (- (log (abs (+ 1 x))) (log (abs (- 1 x))))
-  ours score (8000pt held-out): 58.556166834299624 -> 58.543622874960015
+  herbie ans: (* x (fma (* x x) 0.6666666666666666 2.0))
+  our ans:    (/ (+ (* x (log (/ (- 1 x) (+ 1 x)))) (+ (log (abs (+ (neg 1) (neg x)))) (neg (log (abs (- 1 x)))))) (- 1 x))
+  herbie improvement: 58.499200562589074 -> 0.3727511129128884
+  our improvement:    58.499200562589074 -> 58.48881333234133
 
 [bench_fm_repmul]
   input:  (^ a 4)
-  herbie: (pow a 4.0)
-  ours:   (^ a 4)
-  ours score (8000pt held-out): 0.00825 -> 0.00825
+  herbie ans: (pow a 4.0)
+  our ans:    (^ a 4)
+  herbie improvement: 0.000125 -> 0.000125
+  our improvement:    0.000125 -> 0.000125
 
 [bench_fm_test1]
   input:  (* 30 d)
-  herbie: (* 30.0 d)
-  ours:   (* 30 d)
-  ours score (8000pt held-out): 0.04 -> 0.04
+  herbie ans: (* 30.0 d)
+  our ans:    (* 30 d)
+  herbie improvement: 0.024 -> 0.024
+  our improvement:    0.024 -> 0.024
 
 [bench_fm_test5]
   input:  (^ a 10)
-  herbie: (pow a 10.0)
-  ours:   (^ a 10)
-  ours score (8000pt held-out): 0.022625 -> 0.022625
+  herbie ans: (pow a 10.0)
+  our ans:    (^ a 10)
+  herbie improvement: 0.025125 -> 0.025125
+  our improvement:    0.025125 -> 0.025125
 
 [bench_fma_simple]
   input:  (neg z)
-  herbie: (- z)
-  ours:   (neg z)
-  ours score (8000pt held-out): 0.024 -> 0.024
+  herbie ans: (- z)
+  our ans:    (neg z)
+  herbie improvement: 0.008 -> 0.008
+  our improvement:    0.008 -> 0.008
 
 [bench_fma_test1]
   input:  (+ (neg 1) (+ (^ (+ 1 (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2) (neg (* (/ 2028240960365167 5070602400912917605986812821504) t))))
-  herbie: (* t (/ t 2.5e+31))
-  ours:   (+ (neg 1) (+ (^ (+ 1 (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2) (neg (* (/ 2028240960365167 5070602400912917605986812821504) t))))
-  ours score (8000pt held-out): 14.475549321119775 -> 14.475549321119775
+  herbie ans: (* (/ t 2.5e+31) t)
+  our ans:    (^ (abs (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2)
+  herbie improvement: 11.63874753767965 -> 1.76025
+  our improvement:    11.63874753767965 -> 0.26197669219101566
 
 [bench_fma_test2]
   input:  (- (* 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t) 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632)
-  herbie: (fma 1.7e+308 t -1.7e+308)
-  ours:   (- (* 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t) 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632)
-  ours score (8000pt held-out): 31.816125 -> 31.816125
+  herbie ans: (fma 1.7e+308 t -1.7e+308)
+  our ans:    (/ (* 679999999999999975532318315463992697333384297216303498011092476774150916712642263457320367150338831954289049871932755676679664422373428697073479848249894541185898546062641859742652162739831377214097471260114213090849195945545243314578052849415684493013246701999427502602049749661716871978493299179421358358528 (- t 1)) (abs 4))
+  herbie improvement: 31.77619812031259 -> 31.768
+  our improvement:    31.77619812031259 -> 0.04
 
 [bench_hyp_acosh]
   input:  (log (+ x (sqrt (- (^ x 2) 1))))
-  herbie: (log (* x (- 2.0 (* 0.5 (/ 1.0 (* x x))))))
-  ours:   (log (+ x (sqrt (- (^ x 2) 1))))
-  ours score (8000pt held-out): 32.0815 -> 32.0815
+  herbie ans: (acosh x)
+  our ans:    (acosh x)
+  herbie improvement: 32.513 -> 0.195
+  our improvement:    32.513 -> 0.195
 
 [bench_hyp_acoth]
   input:  (/ (log (/ (+ 1 x) (- x 1))) 2)
-  herbie: (/ (/ 1.0 (* x (- 0.5 (cast (! :precision binary32 (/ 0.16666666666666666 (cast (* x x)))))))) 2.0)
-  ours:   (/ (log (/ (+ 1 x) (- x 1))) 2)
-  ours score (8000pt held-out): 58.62101579110035 -> 58.62101579110035
+  herbie ans: (/ (+ 1.0 (cast (! :precision binary32 (/ 0.3333333333333333 (cast (* x x)))))) x)
+  our ans:    (/ (log (/ (+ 1 x) (- x 1))) 2)
+  herbie improvement: 58.38273764803748 -> 0.3670845327590057
+  our improvement:    58.38273764803748 -> 58.38273764803748
 
 [bench_hyp_acsch]
   input:  (log (+ (/ 1 x) (sqrt (+ 1 (/ 1 (^ x 2))))))
-  herbie: (asinh (/ 1.0 x))
-  ours:   (log (+ (/ 1 x) (sqrt (+ 1 (/ 1 (^ x 2))))))
-  ours score (8000pt held-out): 53.217705769575524 -> 53.217705769575524
+  herbie ans: (asinh (/ 1.0 x))
+  our ans:    (neg (log (/ (abs x) (abs (fma x (sqrt (+ 1 (/ 1 (^ x 2)))) 1)))))
+  herbie improvement: 53.034150875682904 -> 0.103125
+  our improvement:    53.034150875682904 -> 52.942892965004475
 
 [bench_hyp_sech]
   input:  (/ 2 (+ (exp x) (exp (neg x))))
-  herbie: (if (<= (/ 2.0 (+ (exp x) (exp (- x)))) 0.0) (/ 0.0 2.0) (fma -0.5 (* x x) 1.0))
-  ours:   (/ 1 (cosh x))
-  ours score (8000pt held-out): 0.007198120312590144 -> 0.007125
+  herbie ans: (/ 1.0 (cosh x))
+  our ans:    (/ 1 (cosh x))
+  herbie improvement: 0.007969360937770432 -> 0.00725
+  our improvement:    0.007969360937770432 -> 0.00725
 
 [bench_hyp_sinh]
   input:  (/ (- (exp x) (exp (neg x))) 2)
-  herbie: (sinh x)
-  ours:   (sinh x)
-  ours score (8000pt held-out): 29.68816504626363 -> 0.000625
+  herbie ans: (sinh x)
+  our ans:    (sinh x)
+  herbie improvement: 29.04041462746162 -> 0.000375
+  our improvement:    29.04041462746162 -> 0.000375
 
 [bench_hyp_tanh]
   input:  (/ (- (exp x) (exp (neg x))) (+ (exp x) (exp (neg x))))
-  herbie: (tanh x)
-  ours:   (tanh x)
-  ours score (8000pt held-out): 58.1412604901852 -> 0.004625
+  herbie ans: (tanh x)
+  our ans:    (tanh x)
+  herbie improvement: 58.22636297815902 -> 0.006375
+  our improvement:    58.22636297815902 -> 0.006375
 
 [bench_ian_simplification]
   input:  (- (/ 884279719003555 562949953421312) (* 2 (asin (sqrt (/ (- 1 x) 2)))))
-  herbie: (fma (/ -1.0 (acos (sqrt (fma -0.5 x 0.5)))) (/ (- 1.5707963267948966 PI) (/ -1.0 (acos (sqrt (fma -0.5 x 0.5))))) (* (acos (sqrt (fma -0.5 x 0.5))) 2.0))
-  ours:   (- (acos (sqrt (- (/ 1 2) (* (/ 1 2) x)))) (asin (sqrt (- (/ 1 2) (* (/ 1 2) x)))))
-  ours score (8000pt held-out): 51.53001811551009 -> 50.50835805760557
+  herbie ans: (/ (fma (acos (sqrt (fma -0.5 x 0.5))) (/ 1.0 (* (acos (sqrt (fma -0.5 x 0.5))) (acos (sqrt (fma -0.5 x 0.5))))) (/ (- 1.5707963267948966 (acos (- (sqrt (fma -0.5 x 0.5))))) (* (acos (sqrt (fma -0.5 x 0.5))) (acos (sqrt (fma -0.5 x 0.5)))))) (* (/ 1.0 (acos (sqrt (fma -0.5 x 0.5)))) (/ 1.0 (acos (sqrt (fma -0.5 x 0.5))))))
+  our ans:    (- (acos (sqrt (- (/ 1 2) (* (/ 1 2) x)))) (asin (sqrt (- (/ 1 2) (* (/ 1 2) x)))))
+  herbie improvement: 51.46239291725041 -> 49.22931788554808
+  our improvement:    51.46239291725041 -> 50.44426769784699
 
 [bench_invcot]
   input:  (+ (/ 1 x) (/ -1 (tan x)))
-  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 0.005768380830781979) (* (fabs x) (fma (fabs x) (cast (! :precision binary32 (cast (* 0.022222222222222223 (! :precision binary64 (fabs x)))))) 0.3333333333333333)) (fma (tan (fabs x)) (/ 1.0 (* (fabs x) (tan (fabs x)))) (/ -1.0 (tan (fabs x))))))
-  ours:   (+ (/ 1 x) (/ -1 (tan x)))
-  ours score (8000pt held-out): 29.855609499102663 -> 29.855609499102663
+  herbie ans: (* (copysign 1.0 x) (if (<= (fabs x) 0.003542165399545011) (* (fabs x) (+ 0.3333333333333333 (cast (! :precision binary32 (* 0.022222222222222223 (cast (* (! :precision binary64 (fabs x)) (! :precision binary64 (fabs x))))))))) (+ (/ 1.0 (fabs x)) (/ -1.0 (tan (fabs x))))))
+  our ans:    (+ (/ 1 x) (/ -1 (tan x)))
+  herbie improvement: 29.802000443618866 -> N/A(regime)
+  our improvement:    29.802000443618866 -> 29.802000443618866
 
 [bench_jcobi_4_called]
   input:  (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
-  herbie: (if (<= (/ (pow n 2.0) (* 4.0 (- (* 4.0 (pow n 2.0)) 1.0))) 0.1) (/ (* n n) (fma 16.0 (* n n) -4.0)) 0.0625)
-  ours:   (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
-  ours score (8000pt held-out): 15.860034944763985 -> 15.860034944763985
+  herbie ans: (if (<= (/ (pow n 2.0) (* 4.0 (- (* 4.0 (pow n 2.0)) 1.0))) 0.1) (/ (* n n) (fma 16.0 (* n n) -4.0)) 0.0625)
+  our ans:    (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
+  herbie improvement: 15.812495586460104 -> N/A(regime)
+  our improvement:    15.812495586460104 -> 15.812495586460104
 
 [bench_jmat_erf]
   input:  (+ 1 (/ (* -1 (* (+ (/ 2295300911148351 9007199254740992) (/ (- (/ (+ (/ 6401478394306903 4503599627370496) (/ (- (/ (/ 4780145094533421 4503599627370496) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))) (/ 6544414927309881 4503599627370496)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))) (/ 5125037576950889 18014398509481984)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (exp (neg (^ (abs x) 2))))) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))))
-  herbie: (+ 1.0 (/ 1.0 (/ (fma -0.3275911 (fabs x) -1.0) (/ (+ (/ (- (/ (fma (- (/ 1.061405429 (fma (fabs x) 0.3275911 1.0)) 1.453152027) (/ 1.0 (fma (fabs x) 0.3275911 1.0)) 1.421413741) (fma (fabs x) 0.3275911 1.0)) 0.284496736) (fma (fabs x) 0.3275911 1.0)) 0.254829592) (exp (* x x))))))
-  ours:   (+ 1 (+ (/ 2295300911148351 (* 9007199254740992 (* (fma (abs x) (/ -1475339155889891 4503599627370496) -1) (exp (^ (abs x) 2))))) (+ (/ 5125037576950889 (* 18014398509481984 (* (^ (fma (abs x) (/ -1475339155889891 4503599627370496) -1) 2) (exp (^ (abs x) 2))))) (/ (+ (/ 6401478394306903 4503599627370496) (/ (- (/ (/ 4780145094533421 4503599627370496) (fma (/ 1475339155889891 4503599627370496) (abs x) 1)) (/ 6544414927309881 4503599627370496)) (fma (/ 1475339155889891 4503599627370496) (abs x) 1))) (* (^ (fma (abs x) (/ -1475339155889891 4503599627370496) -1) 3) (exp (^ (abs x) 2)))))))
-  ours score (8000pt held-out): 13.549262858849266 -> 0.6635616453454846
+  herbie ans: (if (<= (+ 1.0 (/ (* -1.0 (* (+ (/ 2295300911148351.0 9007199254740992.0) (/ (- (/ (+ (/ 6401478394306903.0 4503599627370496.0) (/ (- (/ (/ 4780145094533421.0 4503599627370496.0) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x)))) (/ 6544414927309881.0 4503599627370496.0)) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x)))) (/ 5125037576950889.0 18014398509481984.0)) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) (exp (- (pow (fabs x) 2.0))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) 2e-9) (* (fma (* (fma -0.3275911 (fabs x) -1.0) (exp (* x x))) (/ 1.0 (- (/ (- (/ (+ (/ (- (/ 1.061405429 (fma 0.3275911 (fabs x) 1.0)) 1.453152027) (fma 0.3275911 (fabs x) 1.0)) 1.421413741) (fma 0.3275911 (fabs x) 1.0)) 0.284496736) (fma 0.3275911 (fabs x) 1.0)) -0.254829592)) 1.0) (/ (- (/ (- 0.284496736 (/ (+ (/ (cast (! :precision binary32 (- (/ 1.061405429 (cast (! :precision binary64 (fma 0.3275911 (fabs x) 1.0)))) 1.453152027))) (fma (fabs x) 0.3275911 1.0)) 1.421413741) (fma (fabs x) 0.3275911 1.0))) (fma (fabs x) 0.3275911 1.0)) 0.254829592) (* (exp (* x x)) (fma (fabs x) 0.3275911 1.0)))) (+ 1.0 (/ (* -1.0 (- (/ (+ 0.254829592 (/ (+ (/ (- (/ 1.061405429 (fma (fabs x) 0.3275911 1.0)) 1.453152027) (fma (fabs x) 0.3275911 1.0)) 1.421413741) (* (fma (fabs x) 0.3275911 1.0) (fma (fabs x) 0.3275911 1.0)))) (exp (* x x))) (/ (/ 0.284496736 (fma (fabs x) 0.3275911 1.0)) (exp (* x x))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))))
+  our ans:    (+ 1 (+ (/ 2295300911148351 (* 9007199254740992 (* (exp (^ (abs x) 2)) (fma (/ -1475339155889891 4503599627370496) (abs x) -1)))) (+ (/ 5125037576950889 (* 18014398509481984 (* (^ (fma (/ -1475339155889891 4503599627370496) (abs x) -1) 2) (exp (^ (abs x) 2))))) (/ (+ (neg (/ 6401478394306903 4503599627370496)) (neg (/ (+ (neg (/ 6544414927309881 4503599627370496)) (neg (/ (/ -4780145094533421 4503599627370496) (fma (/ 1475339155889891 4503599627370496) (abs x) 1)))) (fma (/ 1475339155889891 4503599627370496) (abs x) 1)))) (* (fma (/ 1475339155889891 4503599627370496) (abs x) 1) (* (^ (fma (/ -1475339155889891 4503599627370496) (abs x) -1) 2) (exp (^ (abs x) 2))))))))
+  herbie improvement: 14.024685841109331 -> N/A(regime)
+  our improvement:    14.024685841109331 -> 0.7505958055655108
 
 [bench_kahan_exp]
   input:  (/ (- (exp x) 1) x)
-  herbie: (/ (expm1 x) x)
-  ours:   (/ (- (* 2 (sinh x)) (* 2 (- 1 (cosh x)))) (* 2 x))
-  ours score (8000pt held-out): 29.932691743541596 -> 15.778077354408696
+  herbie ans: (/ 1.0 (/ x (expm1 x)))
+  our ans:    (/ (expm1 x) x)
+  herbie improvement: 29.906155765605224 -> 0.00625
+  our improvement:    29.906155765605224 -> 0.00625
 
 [bench_lambertw_est]
   input:  (- (log x) (log (log x)))
-  herbie: (log (/ x (log x)))
-  ours:   (log (/ x (log x)))
-  ours score (8000pt held-out): 0.255 -> 0.004125
+  herbie ans: (log (/ x (log x)))
+  our ans:    (log (/ x (log x)))
+  herbie improvement: 0.2675731203125902 -> 0.004375
+  our improvement:    0.2675731203125902 -> 0.004375
 
 [bench_ln1px]
   input:  (log (+ 1 x))
-  herbie: (log1p x)
-  ours:   (log (+ 1 x))
-  ours score (8000pt held-out): 38.94328951442269 -> 38.94328951442269
+  herbie ans: (log1p x)
+  our ans:    (log1p x)
+  herbie improvement: 39.01942600540356 -> 0.0
+  our improvement:    39.01942600540356 -> 0.0
 
 [bench_logistic]
   input:  (- (/ 2 (+ 1 (exp (* -2 x)))) 1)
-  herbie: (tanh x)
-  ours:   (- (/ 2 (+ 1 (exp (* -2 x)))) 1)
-  ours score (8000pt held-out): 28.931316162478588 -> 28.931316162478588
+  herbie ans: (if (<= (* -2.0 x) -0.01) (fma (/ (/ -2.0 (- -1.0 (exp (- (+ x x))))) (- -1.0 (exp (- (+ x x))))) (fma (exp (- (+ x x))) -0.5 -0.5) (- (/ -1.0 (- -1.0 (exp (- (+ x x))))) 1.0)) (if (<= (* -2.0 x) 2e-5) (fma (cast (! :precision binary32 (cast (* -0.3333333333333333 x)))) (* x x) x) (+ (+ -1.0 (/ -1.0 (- -1.0 (exp (- (+ x x)))))) (/ -1.0 (- -1.0 (exp (- (+ x x))))))))
+  our ans:    (tanh x)
+  herbie improvement: 28.776754331188606 -> N/A(regime)
+  our improvement:    28.776754331188606 -> 0.002125
 
 [bench_logq]
   input:  (log (/ (- 1 eps) (+ 1 eps)))
-  herbie: (- (* (cast (! :precision binary32 (cast (* -0.6666666666666666 eps)))) (* eps eps)) (+ eps eps))
-  ours:   (- (/ (- (log (^ (/ (^ (abs (abs (- 1 eps))) 2) (abs (+ 1 eps))) 2)) (log (abs (+ 1 eps)))) 4) (* (/ 1 4) (log (abs (+ 1 eps)))))
-  ours score (8000pt held-out): 58.37390170958229 -> 58.36691313535138
+  herbie ans: (* eps (fma (* eps eps) -0.6666666666666666 -2.0))
+  our ans:    (neg (log (/ (abs (+ 1 eps)) (abs (- 1 eps)))))
+  herbie improvement: 58.55548772012353 -> 0.3395799921101162
+  our improvement:    58.55548772012353 -> 58.55613453607739
 
 [bench_logs]
   input:  (+ (neg 1) (+ (* (+ 1 n) (log (+ 1 n))) (neg (* n (log n)))))
-  herbie: (if (<= n 2e-6) (+ -1.0 (fma n (- (* 0.5 n) (log n)) n)) (+ (log n) (/ 0.5 n)))
-  ours:   (+ (neg 1) (neg (log (/ (^ (/ n (+ 1 n)) n) (+ 1 n)))))
-  ours score (8000pt held-out): 29.841056623043972 -> 21.331322149233355
+  herbie ans: (+ (log (- n -1.0)) (fma n (log1p (/ 1.0 n)) -1.0))
+  our ans:    (- (fma n (- (log1p n) (log n)) (log1p n)) 1)
+  herbie improvement: 29.870930543844143 -> 0.03898120312590145
+  our improvement:    29.870930543844143 -> 21.453648426309076
 
 [bench_martel_p14]
   input:  (+ 6 (+ (^ x 3) (+ (* 6 (^ x 2)) (* 11 x))))
-  herbie: (fma x (fma x 6.0 (fma x x 11.0)) 6.0)
-  ours:   (fma x 11 (+ 6 (fma 6 (^ x 2) (^ x 3))))
-  ours score (8000pt held-out): 8.116765662964786 -> 8.092819836191872
+  herbie ans: (fma x (fma (- x -6.0) x 11.0) 6.0)
+  our ans:    (fma x (* x (+ 6 x)) (fma x 11 6))
+  herbie improvement: 7.834896196592246 -> 0.04537495596706604
+  our improvement:    7.834896196592246 -> 0.048380113633492434
 
 [bench_martel_p15_1]
   input:  (* (+ 1 x) (* (+ 2 x) (+ 3 x)))
-  herbie: (* (+ x 1.0) (fma (+ 5.0 x) x 6.0))
-  ours:   (* (+ 1 x) (+ 6 (* x (+ 5 x))))
-  ours score (8000pt held-out): 0.0641580828133113 -> 0.060240601562950725
+  herbie ans: (* (* (+ 3.0 x) (+ x 1.0)) (+ 2.0 x))
+  our ans:    (* (+ 1 x) (* (+ 2 x) (+ 3 x)))
+  herbie improvement: 0.06668872187554087 -> 0.06810620312590146
+  our improvement:    0.06668872187554087 -> 0.06668872187554087
 
 [bench_martel_p15_2]
   input:  (+ (* (^ x 2) (+ 3 x)) (* 2 (+ 3 (+ (^ x 2) (* 3 x)))))
-  herbie: (fma (* (+ 3.0 x) x) (- x -2.0) 6.0)
-  ours:   (+ 6 (+ (* 5 (^ x 2)) (+ (^ x 3) (* 6 x))))
-  ours score (8000pt held-out): 8.119875 -> 8.135375
+  herbie ans: (fma (* (- x -2.0) x) (+ 3.0 x) 6.0)
+  our ans:    (fma x (* (+ 3 x) (+ 2 x)) 6)
+  herbie improvement: 8.262375 -> 0.05014624062518029
+  our improvement:    8.262375 -> 0.04977124062518029
 
 [bench_martel_p15_3]
   input:  (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie: (fma x (fma 6.0 x (fma x x 11.0)) 6.0)
-  ours:   (+ 6 (* x (fma x (+ 6 x) 11)))
-  ours score (8000pt held-out): 0.0500962555500371 -> 0.04954579027678073
+  herbie ans: (fma x (fma (+ x 6.0) x 11.0) 6.0)
+  our ans:    (fma x (* x (+ 6 x)) (fma x 11 6))
+  herbie improvement: 0.05241795026721822 -> 0.052403602336311986
+  our improvement:    0.05241795026721822 -> 0.05687340800150907
 
 [bench_martel_p15_4]
   input:  (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie: (fma x (fma 6.0 x (fma x x 11.0)) 6.0)
-  ours:   (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  ours score (8000pt held-out): 0.06142027722698914 -> 0.06142027722698914
+  herbie ans: (fma x (fma (+ x 6.0) x 11.0) 6.0)
+  our ans:    (+ 6 (* x (+ 11 (* x (+ 6 x)))))
+  herbie improvement: 0.05480742895232966 -> 0.05432312031259015
+  our improvement:    0.05480742895232966 -> 0.05480742895232966
 
 [bench_martel_p6]
   input:  (/ (- x 1) (- (sqrt x) 1))
-  herbie: (+ 1.0 (sqrt x))
-  ours:   (+ (/ x (- (sqrt x) 1)) (/ -1 (- (sqrt x) 1)))
-  ours score (8000pt held-out): 0.26175503621512825 -> 0.2618034141055169
+  herbie ans: (+ 1.0 (sqrt x))
+  our ans:    (+ (/ x (- (sqrt x) 1)) (/ -1 (- (sqrt x) 1)))
+  herbie improvement: 0.26831148163704127 -> 0.00175
+  our improvement:    0.26831148163704127 -> 0.2708499102026902
 
 [bench_mathjs_cube]
   input:  (^ x 3)
-  herbie: (pow x 3.0)
-  ours:   (^ x 3)
-  ours score (8000pt held-out): 0.102125 -> 0.102125
+  herbie ans: (pow x 3.0)
+  our ans:    (^ x 3)
+  herbie improvement: 0.106125 -> 0.106125
+  our improvement:    0.106125 -> 0.106125
 
 [bench_neg_log]
   input:  (neg (log (- (/ 1 x) 1)))
-  herbie: (log (/ x (- 1.0 x)))
-  ours:   (log (/ x (- 1 x)))
-  ours score (8000pt held-out): 0.013750878408361747 -> 0.003884601949631354
+  herbie ans: (log (/ x (- 1.0 x)))
+  our ans:    (log (/ x (- 1 x)))
+  herbie improvement: 0.03142987917662049 -> 0.00435617563761847
+  our improvement:    0.03142987917662049 -> 0.00435617563761847
 
 [bench_qlog]
   input:  (/ (log (- 1 x)) (log (+ 1 x)))
-  herbie: (/ (log1p (- x)) (log1p x))
-  ours:   (neg (log (abs (^ (- 1 x) (/ -1 (log (+ 1 x)))))))
-  ours score (8000pt held-out): 61.50890583439579 -> 59.60736397355727
+  herbie ans: (/ (- (* (* x x) -0.5) x) (fma -0.5 (* x x) x))
+  our ans:    (/ (log1p (neg x)) (log1p x))
+  herbie improvement: 61.09969916032629 -> 0.4416162633296161
+  our improvement:    61.09969916032629 -> 0.024231203125901445
 
 [bench_rosa_poly]
   input:  (- (* (/ 2150310427208497 2251799813685248) x) (* (/ 4647935950575487 36028797018963968) (^ x 3)))
-  herbie: (- (* (/ 2150310427208497.0 2251799813685248.0) x) (* 0.12900613773279798 (pow x 3.0)))
-  ours:   (- (* (/ 2150310427208497 2251799813685248) x) (* (/ 4647935950575487 36028797018963968) (^ x 3)))
-  ours score (8000pt held-out): 0.08407923703951951 -> 0.08407923703951951
+  herbie ans: (fma (* -0.12900613773279798 x) (* x x) (* x 0.954929658551372))
+  our ans:    (* -1 (* x (fma x (* (/ 4647935950575487 36028797018963968) x) (/ -2150310427208497 2251799813685248))))
+  herbie improvement: 0.08054248125036058 -> 0.07758496250072117
+  our improvement:    0.08054248125036058 -> 0.07724060156295073
 
 [bench_rust_acosh]
   input:  (log (+ x (sqrt (- (^ x 2) 1))))
-  herbie: (log (* x (- 2.0 (* 0.5 (/ 1.0 (* x x))))))
-  ours:   (log (+ x (sqrt (- (^ x 2) 1))))
-  ours score (8000pt held-out): 31.962040241011863 -> 31.962040241011863
+  herbie ans: (acosh x)
+  our ans:    (acosh x)
+  herbie improvement: 32.21008048202372 -> 0.194
+  our improvement:    32.21008048202372 -> 0.194
 
 [bench_rust_acosh2]
   input:  (log (+ x (* (sqrt (- x 1)) (sqrt (+ 1 x)))))
-  herbie: (acosh x)
-  ours:   (log (+ x (* (sqrt (- x 1)) (sqrt (+ 1 x)))))
-  ours score (8000pt held-out): 0.059375 -> 0.059375
+  herbie ans: (acosh x)
+  our ans:    (log (+ x (* (sqrt (- x 1)) (sqrt (+ 1 x)))))
+  herbie improvement: 0.050625 -> 0.195375
+  our improvement:    0.050625 -> 0.050625
 
 [bench_rust_asinh]
   input:  (log (+ x (sqrt (+ 1 (^ x 2)))))
-  herbie: (asinh x)
-  ours:   (log (+ x (sqrt (+ 1 (^ x 2)))))
-  ours score (8000pt held-out): 52.92245435381385 -> 52.92245435381385
+  herbie ans: (asinh x)
+  our ans:    (asinh x)
+  herbie improvement: 52.97474567828768 -> 0.10125
+  our improvement:    52.97474567828768 -> 0.10125
 
 [bench_sidey_2]
   input:  (- 1 (sqrt (* (/ 1 2) (+ 1 (/ 1 (sqrt (+ 1 (^ x 2))))))))
-  herbie: (if (<= (/ 1.0 (sqrt (+ 1.0 (pow x 2.0)))) 0.999995) (/ (- 1.0 (- (sqrt (/ 0.25 (fma x x 1.0))) -0.5)) (+ 1.0 (sqrt (- (sqrt (/ 0.25 (fma x x 1.0))) -0.5)))) (/ (* (* x x) (+ 0.125 (cast (! :precision binary32 (* -0.0546875 (* (cast (! :precision binary64 (fabs x))) (cast (! :precision binary64 (fabs x))))))))) (sqrt (sqrt (fma x x 1.0)))))
-  ours:   (- 1 (sqrt (* (/ 1 2) (+ 1 (/ 1 (sqrt (+ 1 (^ x 2))))))))
-  ours score (8000pt held-out): 15.502620283797667 -> 15.502620283797667
+  herbie ans: (if (<= (- 1.0 (sqrt (* (/ 1.0 2.0) (+ 1.0 (/ 1.0 (sqrt (+ 1.0 (pow x 2.0)))))))) 4e-7) (* x (* (fma -0.0859375 (* x x) 0.125) x)) (/ (- 1.0 (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5)) (+ 1.0 (sqrt (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5)))))
+  our ans:    (/ (+ (/ 1 2) (/ (/ -1 2) (cosh (asinh x)))) (+ 1 (sqrt (fma (/ 1 2) (cos (atan x)) (/ 1 2)))))
+  herbie improvement: 15.468772682933787 -> N/A(regime)
+  our improvement:    15.468772682933787 -> 14.982087854137054
 
 [bench_sqrt_A]
   input:  (- (sqrt (+ 1 x)) (sqrt x))
-  herbie: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
-  ours:   (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
-  ours score (8000pt held-out): 29.857321665738958 -> 0.16165112812734378
+  herbie ans: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
+  our ans:    (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
+  herbie improvement: 30.211915824018945 -> 0.16024548906511418
+  our improvement:    30.211915824018945 -> 0.16024548906511418
 
 [bench_sqrt_B]
   input:  (- (sqrt x) (sqrt (- x 1)))
-  herbie: (/ 1.0 (+ (sqrt (- x 1.0)) (sqrt x)))
-  ours:   (/ 1 (+ (sqrt x) (sqrt (- x 1))))
-  ours score (8000pt held-out): 59.58562088923455 -> 0.2585637218755409
+  herbie ans: (/ 1.0 (+ (sqrt (- x 1.0)) (sqrt x)))
+  our ans:    (/ 1 (+ (sqrt x) (sqrt (- x 1))))
+  herbie improvement: 59.751724388770874 -> 0.2624693609377705
+  our improvement:    59.751724388770874 -> 0.2624693609377705
 
 [bench_sqrt_C]
   input:  (- (sqrt (+ 1 (^ x 2))) x)
-  herbie: (if (<= x -4.4469301629845064e+156) (* -2.0 x) (if (<= x 434970.14157925366) (- (sqrt (fma x x 1.0)) x) (/ (- 0.5 (/ 0.125 (* x x))) x)))
-  ours:   (- (sqrt (+ 1 (^ x 2))) x)
-  ours score (8000pt held-out): 24.16917967763634 -> 24.16917967763634
+  herbie ans: (if (<= x -79338780334977630.0) (* -2.0 x) (if (<= x 114667.02962904707) (exp (asinh (- x))) (/ 0.5 x)))
+  our ans:    (/ 1 (^ (exp (* (/ 1 2) (asinh x))) 2))
+  herbie improvement: 22.72807885233927 -> N/A(regime)
+  our improvement:    22.72807885233927 -> 2.9964925029573464
 
 [bench_sqrt_D]
   input:  (/ (- (sqrt (+ 1 x)) 1) x)
-  herbie: (/ 1.0 (+ 1.0 (sqrt (- x -1.0))))
-  ours:   (+ (/ (/ -1 2) x) (/ (- (sqrt (+ 1 x)) (/ 1 2)) x))
-  ours score (8000pt held-out): 39.644457714810315 -> 39.44344959309739
+  herbie ans: (if (<= x 1e+86) (/ x (fma (sqrt (- x -1.0)) x x)) (sqrt (/ 1.0 x)))
+  our ans:    (+ (/ (sqrt (+ 1 x)) x) (/ -1 x))
+  herbie improvement: 40.08051924491482 -> N/A(regime)
+  our improvement:    40.08051924491482 -> 39.768800110383175
 
 [bench_sqrt_E]
   input:  (/ (- 1 (sqrt (- 1 x))) x)
-  herbie: (/ 1.0 (- (sqrt (- 1.0 x)) -1.0))
-  ours:   (+ (/ 1 x) (/ (sqrt (- 1 x)) (neg x)))
-  ours score (8000pt held-out): 39.799051921821416 -> 39.513853439277334
+  herbie ans: (if (<= x -5e+33) (sqrt (/ -1.0 x)) (/ x (fma (sqrt (- 1.0 x)) x x)))
+  our ans:    (+ (/ 1 x) (/ (sqrt (- 1 x)) (neg x)))
+  herbie improvement: 39.957413706684406 -> N/A(regime)
+  our improvement:    39.957413706684406 -> 39.68164036674748
 
 [bench_sqrt_times]
   input:  (* (sqrt (- x 1)) (sqrt x))
-  herbie: (* (sqrt (- x 1.0)) (/ 1.0 (pow x -0.5)))
-  ours:   (* (sqrt x) (^ (- x 1) (/ 1 2)))
-  ours score (8000pt held-out): 0.569 -> 0.55925
+  herbie ans: (* (sqrt (- x 1.0)) (/ 1.0 (pow x -0.5)))
+  our ans:    (* (sqrt (- x 1)) (sqrt x))
+  herbie improvement: 0.551 -> 0.541125
+  our improvement:    0.551 -> 0.551
 
 [bench_sqrtexp]
   input:  (sqrt (/ (- (exp (* 2 x)) 1) (- (exp x) 1)))
-  herbie: (sqrt (- (exp x) -1.0))
-  ours:   (sqrt (/ (- (exp (* 2 x)) 1) (- (exp x) 1)))
-  ours score (8000pt held-out): 41.202699479804224 -> 41.202699479804224
+  herbie ans: (sqrt (/ (expm1 (+ x x)) (expm1 x)))
+  our ans:    (sqrt (/ (expm1 (* 2 x)) (expm1 x)))
+  herbie improvement: 41.10272730767562 -> 0.47175
+  our improvement:    41.10272730767562 -> 0.47175
 
 [bench_tan_example]
   input:  (- (tan (+ (/ 3022314549036573 302231454903657293676544) x)) (tan x))
-  herbie: (/ 1e-8 (fma (cos x) (* (cos -1e-8) (cos x)) (* (cos x) (* (sin -1e-8) (sin x)))))
-  ours:   (- (tan (+ (/ 3022314549036573 302231454903657293676544) x)) (tan x))
-  ours score (8000pt held-out): 31.226102692929185 -> 31.226102692929185
+  herbie ans: (/ 1.0 (/ (fma (cos x) (* (cos x) (cos 1e-8)) (* (cos x) (* (sin -1e-8) (sin x)))) (sin 1e-8)))
+  our ans:    (/ (sin (/ 3022314549036573 302231454903657293676544)) (* (cos (+ (neg (/ 3022314549036573 302231454903657293676544)) (neg x))) (cos x)))
+  herbie improvement: 31.557689251472752 -> 0.27693985157737383
+  our improvement:    31.557689251472752 -> 13.084996629514363
 
 [bench_tanhf]
   input:  (/ (- 1 (cos x)) (sin x))
-  herbie: (tan (* 0.5 x))
-  ours:   (tan (* (/ 1 2) x))
-  ours score (8000pt held-out): 30.685303967355928 -> 0.017875
+  herbie ans: (tan (* 0.5 x))
+  our ans:    (tan (* (/ 1 2) x))
+  herbie improvement: 30.49695787228045 -> 0.018625
+  our improvement:    30.49695787228045 -> 0.018625
 
 [bench_tea_20]
   input:  (* (/ -5734161139222659 4503599627370496) (log (/ (+ (exp (* (/ 884279719003555 1125899906842624) f)) (exp (* (/ -884279719003555 1125899906842624) f))) (- (exp (* (/ 884279719003555 1125899906842624) f)) (exp (* (/ -884279719003555 1125899906842624) f))))))
-  herbie: (if (<= (* (/ -5734161139222659.0 4503599627370496.0) (log (/ (+ (exp (* (/ 884279719003555.0 1125899906842624.0) f)) (exp (* (/ -884279719003555.0 1125899906842624.0) f))) (- (exp (* (/ 884279719003555.0 1125899906842624.0) f)) (exp (* (/ -884279719003555.0 1125899906842624.0) f)))))) -5e-9) (* -1.2732395447351628 (log (/ (cosh (* -0.7853981633974483 f)) (sinh (* f 0.7853981633974483))))) (* (/ 0.0 4503599627370496.0) (log (* 0.2617993877991494 f))))
-  ours:   (* (/ 5734161139222659 4503599627370496) (log (/ (abs (* 2 (sinh (* (/ 884279719003555 1125899906842624) f)))) (* 2 (cosh (* (/ 884279719003555 1125899906842624) f))))))
-  ours score (8000pt held-out): 61.387443556809274 -> 1.9404578258454728
+  herbie ans: (* 1.2732395447351628 (log (tanh (* 0.7853981633974483 f))))
+  our ans:    (* (/ 5734161139222659 4503599627370496) (log (/ (abs (sinh (* (/ -884279719003555 1125899906842624) f))) (cosh (* (/ -884279719003555 1125899906842624) f)))))
+  herbie improvement: 61.44377344378901 -> 0.5693447973219736
+  our improvement:    61.44377344378901 -> 1.8783214690106265
 
 [bench_trig_B]
   input:  (/ (- 1 (^ (tan x) 2)) (+ 1 (^ (tan x) 2)))
-  herbie: (cos (+ x x))
-  ours:   (/ (- 1 (^ (tan x) 2)) (+ 1 (^ (tan x) 2)))
-  ours score (8000pt held-out): 0.3278251186949595 -> 0.3278251186949595
+  herbie ans: (cos (+ x x))
+  our ans:    (/ (fma (tan x) (tan x) -1) (+ (neg 1) (neg (^ (tan x) 2))))
+  herbie improvement: 0.3263206647764713 -> 0.062375
+  our improvement:    0.3263206647764713 -> 0.31042168816595495
 
 [bench_x_over_xsq_plus_1]
   input:  (/ x (+ 1 (^ x 2)))
-  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 5235948.155326278) (/ (fabs x) (fma (fabs x) (fabs x) 1.0)) (/ 1.0 (fabs x))))
-  ours:   (/ x (+ 1 (^ x 2)))
-  ours score (8000pt held-out): 15.176028661591623 -> 15.176028661591623
+  herbie ans: (* (copysign 1.0 x) (if (<= (fabs x) 114667.02962904707) (* (fabs x) (/ 1.0 (fma (fabs x) (fabs x) 1.0))) (/ 1.0 (fabs x))))
+  our ans:    (/ x (+ 1 (^ x 2)))
+  herbie improvement: 15.042269746055087 -> N/A(regime)
+  our improvement:    15.042269746055087 -> 15.042269746055087
 
 [bench_x_poly]
   input:  (^ x 4)
-  herbie: (pow x 4.0)
-  ours:   (^ x 4)
-  ours score (8000pt held-out): 0.00825 -> 0.00825
+  herbie ans: (pow x 4.0)
+  our ans:    (^ x 4)
+  herbie improvement: 0.008375 -> 0.008375
+  our improvement:    0.008375 -> 0.008375
 
 [bench_xlohi]
   input:  x
-  herbie: x
-  ours:   x
-  ours score (8000pt held-out): 0.024 -> 0.024
+  herbie ans: x
+  our ans:    x
+  herbie improvement: 0.032 -> 0.032
+  our improvement:    0.032 -> 0.032
 
