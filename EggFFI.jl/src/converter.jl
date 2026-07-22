@@ -20,6 +20,7 @@ function _num_to_sexpr(n)::String
         return "(/ $(numerator(n)) $(denominator(n)))"
     end
     if n isa AbstractFloat
+        (isnan(n) || isinf(n)) && throw(ExactInfinityError())
         isinteger(n) && return string(BigInt(n))
         r = Rational{BigInt}(n)
         denominator(r) == 0 && throw(ExactInfinityError())
@@ -144,11 +145,15 @@ function totoken(s::AbstractString)::Vector{String}
     return tokens
 end
 
-function try_parse_rational(s::String)::Union{Rational{Int}, Nothing}
+function try_parse_rational(s::String)::Union{Rational{Int}, Rational{BigInt}, Nothing}
     try
-        parse(Rational{Int}, s)
+        return parse(Rational{Int}, s)
     catch
-        nothing
+    end
+    try
+        return parse(Rational{BigInt}, s)
+    catch
+        return nothing
     end
 end
 

@@ -1,14 +1,39 @@
 # core/alt-table.rkt.
 
 """
-    ast_size_cost(expr) -> Int
+    HERBIE_OP_COST
+
+cost per op/node , we had same for each node/op
+"""
+const HERBIE_OP_COST = Dict{String, Float64}(
+    "+" => 0.200, "-" => 0.200, "*" => 0.250, "/" => 0.350, "^" => 2.000,
+    "neg" => 0.125, "sqrt" => 0.250, "fabs" => 0.125, "abs" => 0.125,
+    "ceil" => 0.250, "floor" => 0.300, "round" => 0.850, "log" => 0.750, "cbrt" => 2.000,
+    "sin" => 4.200, "cos" => 4.200, "tan" => 4.650,
+    "asin" => 0.500, "acos" => 0.500, "atan" => 1.100,
+    "sinh" => 1.750, "cosh" => 1.650, "tanh" => 1.000,
+    "asinh" => 1.125, "acosh" => 0.850, "atanh" => 0.450,
+    "erf" => 1.125, "erfc" => 0.900,
+    "exp" => 1.375, "log1p" => 1.300, "expm1" => 0.900,
+    "copysign" => 0.200, "fmin" => 0.250, "fmax" => 0.250,
+    "atan2" => 2.000, "hypot" => 1.700, "remainder" => 1.000,
+    "fma" => 0.375,
+)
+const HERBIE_MOVE_COST = 0.125  # leaves
+
+function _tree_cost(tree)::Float64
+    tree isa AbstractString && return HERBIE_MOVE_COST
+    op, args = tree
+    return get(HERBIE_OP_COST, op, HERBIE_MOVE_COST) + sum(_tree_cost(a) for a in args; init = 0.0)
+end
+
+"""
+    ast_size_cost(expr) -> Float64
 
 Node-count cost, walking the Symbolics/SymbolicUtils tree directly .
 """
-function ast_size_cost(expr)::Int
-    expr = Symbolics.unwrap(expr)
-    (expr isa Number || SymbolicUtils.isconst(expr) || !iscall(expr)) && return 1
-    return 1 + sum(ast_size_cost(a) for a in arguments(expr); init = 0)
+function ast_size_cost(expr)::Float64
+    return _tree_cost(parse_sexpr(to_sexpr(expr)))
 end
 
 """
@@ -123,7 +148,16 @@ Scores a batch of NEW candidate expressions not yet in the table .
 """
 function atab_eval_altns(table::AltTable, candidates::Vector{Num}, vars)
     errss = [points_errors(c, vars, table.pcontext) for c in candidates]
-    costs = [Float64(ast_size_cost(c)) for c in candidates]
+    costs = Float64[]
+    for c in candidates
+        cost = try
+            Float64(ast_size_cost(c))
+        catch e
+            e isa ExactInfinityError || rethrow()
+            Inf
+        end
+        push!(costs, cost)
+    end
     return errss, costs
 end
 
