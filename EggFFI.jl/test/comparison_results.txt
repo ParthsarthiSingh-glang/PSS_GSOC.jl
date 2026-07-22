@@ -1,546 +1,858 @@
 [bench_2atan]
   input:  (- (atan (+ 1 N)) (atan N))
-  herbie ans: (atan2 1.0 (fma N N (+ N 1.0)))
-  our ans:    (atan 1 (+ 1 (fma N N N)))
-  herbie improvement: 14.862847491228528 -> 0.3772165266593353
-  our improvement:    14.862847491228528 -> 0.3767165266593353
+  herbie: (atan2 1.0 (fma N N (+ N 1.0)))
+  our alt1: (atan 1 (+ 1 (fma N N N)))
+  our alt2: (- (atan (+ 1 N)) (atan N))
+  our alt3: 0
+  input score -> herbie score: 15.540756503073961 -> 0.32596465307235806
+  input score -> alt1 score:   15.540756503073961 -> 0.32571465307235803
+  input score -> alt2 score:   15.540756503073961 -> 15.540756503073961
+  input score -> alt3 score:   15.540756503073961 -> 46.385419833463295
 
 [bench_2cbrt]
   input:  (- (cbrt (+ 1 x)) (cbrt x))
-  herbie ans: (if (<= (- (cbrt (+ 1.0 x)) (cbrt x)) 0.002) (/ 1.0 (fma x (/ 1.0 (cbrt x)) (* x (+ (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x))))) (+ (cbrt (+ (/ 1.0 x) (/ 1.0 (* x x)))) (* 0.3333333333333333 (/ 1.0 (* (* x (* x x)) (* (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x))))) (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x)))))))))))))) (fma -0.3333333333333333 (* 3.0 (cbrt x)) (cbrt (+ x 1.0))))
-  our ans:    (/ (- (/ (* (/ 3 4) (fma (cbrt (+ 1 x)) (- (cbrt (+ (neg 1) (neg x))) (cbrt x)) (neg (^ x (/ 2 3))))) (fma (cbrt (+ 1 x)) (- (cbrt x) (cbrt (+ (neg 1) (neg x)))) (^ x (/ 2 3)))) (/ 1 4)) (fma (cbrt (+ 1 x)) (- (cbrt (+ (neg 1) (neg x))) (cbrt x)) (neg (^ x (/ 2 3)))))
-  herbie improvement: 29.31900753066465 -> N/A(regime)
-  our improvement:    29.31900753066465 -> 2.2535250717459885
+  herbie: (if (<= (- (cbrt (+ 1.0 x)) (cbrt x)) 1e-8) (/ 3.0 (* x (fma 3.0 (+ (cbrt (+ (/ 1.0 x) (* 2.0 (/ 1.0 (* x x))))) (cbrt (+ (/ 1.0 x) (/ 1.0 (* x x))))) (* 3.0 (/ 1.0 (cbrt x)))))) (/ 1.0 (+ (+ (cbrt (fma x x x)) (cbrt (* x x))) (cbrt (+ (fma x x x) (+ x 1.0))))))
+  our alt1: (/ 1 (fma (cbrt (+ 1 x)) (+ (cbrt (+ 1 x)) (cbrt x)) (^ x (/ 2 3))))
+  our alt2: (/ 1 (* 3 (* (cbrt (/ 1 x)) x)))
+  our alt3: (/ 1 (* 3 (^ (cbrt x) 2)))
+  input score -> herbie score: 29.49274229162375 -> N/A(regime)
+  input score -> alt1 score:   29.49274229162375 -> 2.2707891948580627
+  input score -> alt2 score:   29.49274229162375 -> 31.117714100584738
+  input score -> alt3 score:   29.49274229162375 -> 31.16617576766401
 
 [bench_2frac]
   input:  (+ (/ 1 (+ 1 x)) (/ -1 x))
-  herbie ans: (/ (/ -1.0 (- x -1.0)) x)
-  our ans:    (/ -1 (+ x (^ x 2)))
-  herbie improvement: 14.66390069511874 -> 0.382515534259253
-  our improvement:    14.66390069511874 -> 0.3833174139466629
+  herbie: (/ -1.0 (+ x (/ 1.0 (pow x -2.0))))
+  our alt1: (/ -1 (fma x x x))
+  our alt2: (/ -1 (* x (+ 1 x)))
+  our alt3: (+ (/ 1 (+ 1 x)) (/ -1 x))
+  input score -> herbie score: 14.942528870089436 -> 0.3055029995534695
+  input score -> alt1 score:   14.942528870089436 -> 0.30210675892828914
+  input score -> alt2 score:   14.942528870089436 -> 0.3050029995534695
+  input score -> alt3 score:   14.942528870089436 -> 14.942528870089436
 
 [bench_2isqrt]
   input:  (+ (/ 1 (sqrt x)) (/ -1 (sqrt (+ 1 x))))
-  herbie ans: (if (<= x 52571111780125.3) (/ (/ (- (- x -1.0) x) (fma (- x) (/ -1.0 (sqrt x)) (sqrt (- x -1.0)))) (sqrt (fma x x x))) (* 0.5 (/ (sqrt (/ 1.0 x)) x)))
-  our ans:    (/ (- (sqrt (/ (+ 1 x) x)) 1) (sqrt (+ 1 x)))
-  herbie improvement: 20.332533790737994 -> N/A(regime)
-  our improvement:    20.332533790737994 -> 20.283455441737573
+  herbie: (if (<= x 449436646559.63) (/ (- (- x -1.0) x) (* (+ (sqrt (- x -1.0)) (/ x (sqrt x))) (sqrt (fma x x x)))) (/ (* 0.5 (sqrt (/ 1.0 x))) (- x -1.0)))
+  our alt1: (/ (- (* (sqrt (/ (+ 1 x) x)) (sqrt (+ 1 x))) (sqrt (+ 1 x))) (+ 1 x))
+  our alt2: (/ (- (sqrt (/ (+ 1 x) x)) 1) (sqrt (+ 1 x)))
+  our alt3: (/ (- (sqrt x) (* (sqrt x) (sqrt (/ x (+ 1 x))))) x)
+  input score -> herbie score: 19.655029855022295 -> N/A(regime)
+  input score -> alt1 score:   19.655029855022295 -> 19.5995411351444
+  input score -> alt2 score:   19.655029855022295 -> 19.595308208625582
+  input score -> alt3 score:   19.655029855022295 -> 19.62984824612413
 
 [bench_2sqrt]
   input:  (- (sqrt (+ 1 x)) (sqrt x))
-  herbie ans: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
-  our ans:    (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
-  herbie improvement: 30.09244115589125 -> 0.15923120312590147
-  our improvement:    30.09244115589125 -> 0.15923120312590147
+  herbie: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
+  our alt1: (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
+  our alt2: (/ 1 (+ 1 (sqrt x)))
+  our alt3: (* (/ 1 2) (sqrt (/ 1 x)))
+  input score -> herbie score: 29.856738935182236 -> 0.1677667296902945
+  input score -> alt1 score:   29.856738935182236 -> 0.1677667296902945
+  input score -> alt2 score:   29.856738935182236 -> 26.61936676873164
+  input score -> alt3 score:   29.856738935182236 -> 30.482707628498623
 
 [bench_3frac]
   input:  (+ (/ 1 (+ 1 x)) (+ (/ -2 x) (/ 1 (- x 1))))
-  herbie ans: (* (copysign 1.0 x) (if (<= (+ (/ 1.0 (+ 1.0 (fabs x))) (+ (/ -2.0 (fabs x)) (/ 1.0 (- (fabs x) 1.0)))) -200000000.0) (- (/ -2.0 (fabs x)) (+ (fabs x) (fabs x))) (/ (/ (/ 2.0 (fabs x)) (fabs x)) (fabs x))))
-  our ans:    (+ (/ -2 (fma x x -1)) (+ (/ 2 (* x (fma x x -1))) (/ 2 (fma x x -1))))
-  herbie improvement: 9.930007856434026 -> N/A(regime)
-  our improvement:    9.930007856434026 -> 0.33980814312809754
+  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 4539.0078915383565) (/ (fma (fma (fabs x) (fabs x) -1.0) -2.0 (* (+ (fabs x) (fabs x)) (fabs x))) (* (fma (fabs x) (fabs x) -1.0) (fabs x))) (/ (/ 2.0 (* (fabs x) (fabs x))) (fabs x))))
+  our alt1: (/ (+ (neg 2) (+ (/ x (- x 1)) (/ x (+ 1 x)))) x)
+  our alt2: (+ (/ 1 (+ 1 x)) (+ (/ -2 x) (/ 1 (- x 1))))
+  our alt3: (fma (- (/ 2 x) 1) (/ 1 (- x 1)) (/ 1 (+ 1 x)))
+  input score -> herbie score: 9.865360371861165 -> N/A(regime)
+  input score -> alt1 score:   9.865360371861165 -> 9.858885033206642
+  input score -> alt2 score:   9.865360371861165 -> 9.865360371861165
+  input score -> alt3 score:   9.865360371861165 -> 9.840307814235894
 
 [bench_arccos]
   input:  (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
-  herbie ans: (* 2.0 (atan (sqrt (/ (- 1.0 x) (+ 1.0 x)))))
-  our ans:    (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
-  herbie improvement: 0.013625 -> 0.013625
-  our improvement:    0.013625 -> 0.013625
+  herbie: (* 2.0 (atan (sqrt (/ (+ 0.5 (- 0.5 x)) (+ 1.0 x)))))
+  our alt1: (* 2 (atan (sqrt (/ (- 1 x) (+ 1 x)))))
+  our alt2: (atan (* 2 (sqrt (/ (- 1 x) (+ 1 x)))) (+ 1 (/ (- x 1) (+ 1 x))))
+  our alt3: (atan (* 2 (sqrt (/ (- 1 x) (+ 1 x)))) (/ (* 2 x) (+ 1 x)))
+  input score -> herbie score: 0.015375 -> 0.015375
+  input score -> alt1 score:   0.015375 -> 0.015375
+  input score -> alt2 score:   0.015375 -> 0.015875
+  input score -> alt3 score:   0.015375 -> 0.0135
 
 [bench_asymptote_A]
   input:  (+ (/ 1 (+ 1 x)) (/ -1 (- x 1)))
-  herbie ans: (if (<= (+ (/ 1.0 (+ 1.0 x)) (/ -1.0 (- x 1.0))) 0.0) (/ (/ -2.0 x) x) (fma x (+ x x) 2.0))
-  our ans:    (+ (/ (/ -1 2) (fma x x -1)) (/ (/ -3 2) (fma x x -1)))
-  herbie improvement: 14.156205056850096 -> N/A(regime)
-  our improvement:    14.156205056850096 -> 0.35736824755291
+  herbie: (/ (/ 2.0 (- 1.0 x)) (+ x 1.0))
+  our alt1: (/ -2 (fma x x -1))
+  our alt2: (/ -2 (* (+ 1 x) (- x 1)))
+  our alt3: (+ (/ 1 (+ 1 x)) (/ -1 (- x 1)))
+  input score -> herbie score: 14.008815489657147 -> 0.40280716645179876
+  input score -> alt1 score:   14.008815489657147 -> 0.3985571664517988
+  input score -> alt2 score:   14.008815489657147 -> 0.40280716645179876
+  input score -> alt3 score:   14.008815489657147 -> 14.008815489657147
 
 [bench_asymptote_B]
   input:  (+ (/ 1 (- x 1)) (/ x (+ 1 x)))
-  herbie ans: (+ (/ 1.0 (- x 1.0)) (/ x (+ 1.0 x)))
-  our ans:    (+ (/ 1 (- x 1)) (/ x (+ 1 x)))
-  herbie improvement: 0.01125 -> 0.01125
-  our improvement:    0.01125 -> 0.01125
+  herbie: (+ (/ 1.0 (- x 1.0)) (/ x (+ 1.0 x)))
+  our alt1: (+ (/ 1 (- x 1)) (/ x (+ 1 x)))
+  our alt2: 1
+  our alt3: (+ 1 (/ 2 (^ x 2)))
+  input score -> herbie score: 0.01275 -> 0.01275
+  input score -> alt1 score:   0.01275 -> 0.01275
+  input score -> alt2 score:   0.01275 -> 31.618219176035193
+  input score -> alt3 score:   0.01275 -> 31.936617722439937
 
 [bench_asymptote_C]
   input:  (+ (/ x (+ 1 x)) (/ (+ (neg 1) (neg x)) (- x 1)))
-  herbie ans: (if (<= (+ (/ x (+ 1.0 x)) (/ (+ (- 1.0) (- x)) (- x 1.0))) 5e-13) (- (/ -3.0 x) (/ 1.0 (* x x))) (/ (fma -3.0 x -1.0) (fma x x -1.0)))
-  our ans:    (+ (/ x (+ 1 x)) (+ (/ x (- 1 x)) (/ -1 (- x 1))))
-  herbie improvement: 28.909622374346505 -> N/A(regime)
-  our improvement:    28.909622374346505 -> 25.225912690402744
+  herbie: (if (<= (+ (/ x (+ 1.0 x)) (/ (+ (- 1.0) (- x)) (- x 1.0))) 0.0) (/ (- (/ -1.0 x) 3.0) x) (/ (fma -3.0 x -1.0) (fma x x -1.0)))
+  our alt1: (/ (- (fma x (/ (- x 1) (+ 1 x)) -1) x) (- x 1))
+  our alt2: (/ (- x (fma x (/ (- 1 x) (+ (neg 1) (neg x))) -1)) (- 1 x))
+  our alt3: (+ (/ x (+ 1 x)) (/ (+ (neg 1) (neg x)) (- x 1)))
+  input score -> herbie score: 29.07901948713455 -> N/A(regime)
+  input score -> alt1 score:   29.07901948713455 -> 28.82457738311626
+  input score -> alt2 score:   29.07901948713455 -> 28.82457738311626
+  input score -> alt3 score:   29.07901948713455 -> 29.07901948713455
 
 [bench_bug333]
   input:  (- (log x) (log (- x 1)))
-  herbie ans: (/ 1.0 (* x (- 1.0 (cast (! :precision binary32 (cast (/ 0.5 x)))))))
-  our ans:    (neg (log1p (/ -1 x)))
-  herbie improvement: 58.77569315520597 -> 0.6393056284454374
-  our improvement:    58.77569315520597 -> 0.014448120312590145
+  herbie: (- (log1p (/ -1.0 x)))
+  our alt1: (neg (log1p (/ -1 x)))
+  our alt2: (/ (+ 1 (/ (/ 1 2) x)) x)
+  our alt3: (/ 1 x)
+  input score -> herbie score: 58.67532213671009 -> 0.014875
+  input score -> alt1 score:   58.67532213671009 -> 0.014875
+  input score -> alt2 score:   58.67532213671009 -> 0.7175929033582014
+  input score -> alt3 score:   58.67532213671009 -> 1.4155177809818997
 
 [bench_bug366_a]
   input:  (/ (sin x) (- 1 (cos x)))
-  herbie ans: (/ 1.0 (tan (* 0.5 x)))
-  our ans:    (/ (sin x) (- 1 (cos x)))
-  herbie improvement: 31.90949924299433 -> 0.17025
-  our improvement:    31.90949924299433 -> 31.90949924299433
+  herbie: (/ 1.0 (tan (* 0.5 x)))
+  our alt1: (fma x (/ -1 6) (/ 2 x))
+  our alt2: (- (/ 2 x) (* (/ 1 6) x))
+  our alt3: (/ (+ x (/ -12 x)) -6)
+  input score -> herbie score: 32.05384251865951 -> 0.1625212406251803
+  input score -> alt1 score:   32.05384251865951 -> 31.15836582243516
+  input score -> alt2 score:   32.05384251865951 -> 31.15836582243516
+  input score -> alt3 score:   32.05384251865951 -> 31.283123680539763
 
 [bench_bug366_b]
   input:  (/ (- 1 (cos x)) (sin x))
-  herbie ans: (tan (* 0.5 x))
-  our ans:    (tan (* (/ 1 2) x))
-  herbie improvement: 29.750629905602647 -> 0.02
-  our improvement:    29.750629905602647 -> 0.02
+  herbie: (tan (* 0.5 x))
+  our alt1: (tan (* (/ 1 2) x))
+  our alt2: (/ (sin x) (+ 1 (cos x)))
+  our alt3: (/ (- 1 (cos x)) (sin x))
+  input score -> herbie score: 30.63359109239846 -> 0.0185
+  input score -> alt1 score:   30.63359109239846 -> 0.0185
+  input score -> alt2 score:   30.63359109239846 -> 0.4463029955655923
+  input score -> alt3 score:   30.63359109239846 -> 30.63359109239846
 
 [bench_cos2]
   input:  (/ (- 1 (cos x)) (^ x 2))
-  herbie ans: (if (<= (fabs x) 0.0004) (fma (fabs x) (* -0.041666666666666664 (fabs x)) 0.5) (/ (/ (- 1.0 (cos (fabs x))) (fabs x)) (fabs x)))
-  our ans:    (/ (+ (/ 1 x) (/ (neg (cos x)) x)) x)
-  herbie improvement: 31.427443623597657 -> N/A(regime)
-  our improvement:    31.427443623597657 -> 30.7596304606154
+  herbie: (if (<= (fabs x) 1e-15) 0.5 (/ (fma (/ (- (cos (fabs x))) (fabs x)) (fabs x) 1.0) (* (fabs x) (fabs x))))
+  our alt1: (/ (+ (/ 1 x) (/ (neg (cos x)) x)) x)
+  our alt2: (* (- 1 (cos x)) (^ (/ 1 x) 2))
+  our alt3: (+ (/ 1 (^ x 2)) (/ (neg (cos x)) (^ x 2)))
+  input score -> herbie score: 31.29457642956191 -> N/A(regime)
+  input score -> alt1 score:   31.29457642956191 -> 30.630171512087053
+  input score -> alt2 score:   31.29457642956191 -> 31.103125751863328
+  input score -> alt3 score:   31.29457642956191 -> 31.236930817067414
 
 [bench_ena_1]
   input:  (log (/ (+ 1 x) (- 1 x)))
-  herbie ans: (* x (fma (* x x) 0.6666666666666666 2.0))
-  our ans:    (- (log (abs (+ 1 x))) (log (abs (- 1 x))))
-  herbie improvement: 58.64801200957288 -> 0.28127906845232725
-  our improvement:    58.64801200957288 -> 58.63503337440427
+  herbie: (fma 0.6666666666666666 (* (* x x) x) (+ x x))
+  our alt1: (fma x 2 (* (/ 2 3) (^ x 3)))
+  our alt2: (* x (+ 2 (* (/ 2 3) (^ x 2))))
+  our alt3: (* 2 x)
+  input score -> herbie score: 58.529749678741645 -> 0.35051893351811697
+  input score -> alt1 score:   58.529749678741645 -> 0.35051893351811697
+  input score -> alt2 score:   58.529749678741645 -> 0.3557310824343223
+  input score -> alt3 score:   58.529749678741645 -> 0.6985982950093443
 
 [bench_ena_4b2]
   input:  (- (^ x 2) 1)
-  herbie ans: (fma x x -1.0)
-  our ans:    (fma x x -1)
-  herbie improvement: 0.01025 -> 0.008
-  our improvement:    0.01025 -> 0.008
+  herbie: (fma x x -1.0)
+  our alt1: (- (^ x 2) 1)
+  our alt2: -1
+  our alt3: x
+  input score -> herbie score: 0.01689624062518029 -> 0.016
+  input score -> alt1 score:   0.01689624062518029 -> 0.01689624062518029
+  input score -> alt2 score:   0.01689624062518029 -> 32.141168779400914
+  input score -> alt3 score:   0.01689624062518029 -> 62.20763865309412
 
 [bench_ena_4b5]
   input:  (- (^ x 5) 1)
-  herbie ans: (- (pow x 5.0) 1.0)
-  our ans:    (/ (- 2 (* 2 (^ x 5))) -2)
-  herbie improvement: 0.041198120312590146 -> 0.041198120312590146
-  our improvement:    0.041198120312590146 -> 0.025198120312590146
+  herbie: (- (pow x 5.0) 1.0)
+  our alt1: (- (^ x 5) 1)
+  our alt2: (^ x 5)
+  our alt3: -1
+  input score -> herbie score: 0.026 -> 0.026
+  input score -> alt1 score:   0.026 -> 0.026
+  input score -> alt2 score:   0.026 -> 30.27054857247442
+  input score -> alt3 score:   0.026 -> 32.82389309129843
 
 [bench_ena_4d]
   input:  (- (exp x) 1)
-  herbie ans: (* (+ (sqrt (exp x)) 1.0) (expm1 (* 0.5 x)))
-  our ans:    (expm1 x)
-  herbie improvement: 29.192592737483572 -> 0.012094360937770433
-  our improvement:    29.192592737483572 -> 0.00025
+  herbie: (expm1 x)
+  our alt1: (expm1 x)
+  our alt2: (- (exp x) 1)
+  our alt3: x
+  input score -> herbie score: 29.26223305042529 -> 0.0
+  input score -> alt1 score:   29.26223305042529 -> 0.0
+  input score -> alt2 score:   29.26223305042529 -> 29.26223305042529
+  input score -> alt3 score:   29.26223305042529 -> 31.81221644064242
 
 [bench_ena_A]
   input:  (- (sqrt (+ 1 (^ x 2))) 1)
-  herbie ans: (if (<= (- (sqrt (+ 1.0 (pow (fabs x) 2.0))) 1.0) 200000.0) (* (* 2.0 (/ (fabs x) (sqrt (* 2.0 (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0))))) (/ (fabs x) (sqrt (* 2.0 (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0))))) (- (fabs x) 1.0))
-  our ans:    (/ (^ (sinh (* (/ 1 2) (asinh x))) 2) (/ 1 2))
-  herbie improvement: 30.42426256591292 -> N/A(regime)
-  our improvement:    30.42426256591292 -> 3.015338346744478
+  herbie: (if (<= (- (sqrt (+ 1.0 (pow (fabs x) 2.0))) 1.0) 100.0) (/ (* (fabs x) (fabs x)) (- (sqrt (fma (fabs x) (fabs x) 1.0)) -1.0)) (- (fabs x) 1.0))
+  our alt1: (* (/ 1 2) (^ x 2))
+  our alt2: (/ (/ 1 2) (^ (/ 1 x) 2))
+  our alt3: (* (^ x 2) (fma (* (/ -1 8) x) x (/ 1 2)))
+  input score -> herbie score: 30.713205947699578 -> N/A(regime)
+  input score -> alt1 score:   30.713205947699578 -> 31.100500422038458
+  input score -> alt2 score:   30.713205947699578 -> 31.563043880572636
+  input score -> alt3 score:   30.713205947699578 -> 32.12750326964404
 
 [bench_ena_B]
   input:  (/ x (+ 1 (sqrt (+ 1 (^ x 2)))))
-  herbie ans: (* (copysign 1.0 x) (if (<= (fabs x) 200000.0) (/ (* (fabs x) (- (* -0.5 (* (fabs x) (fabs x))) 2.0)) (* (- (* -0.5 (* (fabs x) (fabs x))) 2.0) (- (sqrt (fma (fabs x) (fabs x) 1.0)) -1.0))) (/ (fabs x) (+ 1.0 (fabs x)))))
-  our ans:    (/ x (+ 1 (cosh (asinh x))))
-  herbie improvement: 15.728612034878214 -> N/A(regime)
-  our improvement:    15.728612034878214 -> 2.986847532870582
+  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 100.0) (* (fabs x) (/ 1.0 (+ (sqrt (fma (fabs x) (fabs x) 1.0)) 1.0))) (/ (fabs x) (+ 1.0 (fabs x)))))
+  our alt1: (/ x (+ 1 (sqrt (+ 1 (^ x 2)))))
+  our alt2: (* (/ 1 2) x)
+  our alt3: (fma x (/ 1 2) (* (/ -1 8) (^ x 3)))
+  input score -> herbie score: 15.163999897206784 -> N/A(regime)
+  input score -> alt1 score:   15.163999897206784 -> 15.163999897206784
+  input score -> alt2 score:   15.163999897206784 -> 30.49994815212726
+  input score -> alt3 score:   15.163999897206784 -> 32.06802825028712
 
 [bench_exp2]
   input:  (+ (neg 2) (+ (exp x) (exp (neg x))))
-  herbie ans: (if (<= (+ (- 2.0) (+ (exp x) (exp (- x)))) 5e-8) (* (* x x) (+ 1.0 (cast (! :precision binary32 (* 0.08333333333333333 (cast (* x x))))))) (- (/ 1.0 (pow (expm1 x) -1.0)) (- (expm1 (- x)))))
-  our ans:    (+ (neg 2) (+ (exp x) (exp (neg x))))
-  herbie improvement: 14.8653414624581 -> N/A(regime)
-  our improvement:    14.8653414624581 -> 14.8653414624581
+  herbie: (if (<= (+ (- 2.0) (+ (exp x) (exp (- x)))) 1e-10) (fma (* 0.08333333333333333 (* x x)) (* x x) (* x x)) (fma 2.0 (cosh x) -2.0))
+  our alt1: (fma x x (* (/ 1 12) (^ x 4)))
+  our alt2: (* (^ x 2) (+ 1 (* (/ 1 12) (^ x 2))))
+  our alt3: (^ x 2)
+  input score -> herbie score: 14.686741243975968 -> N/A(regime)
+  input score -> alt1 score:   14.686741243975968 -> 8.500033286543346
+  input score -> alt2 score:   14.686741243975968 -> 8.542871620946757
+  input score -> alt3 score:   14.686741243975968 -> 16.685173812834226
 
 [bench_exp_neg_sub]
   input:  (exp (- (^ x 2) 1))
-  herbie ans: (exp (- (fma x x -0.5) 0.5))
-  our ans:    (exp (- (^ x 2) 1))
-  herbie improvement: 0.009351630414696476 -> 0.009476630414696477
-  our improvement:    0.009351630414696476 -> 0.009351630414696476
+  herbie: (/ (exp (* x x)) E)
+  our alt1: (/ (^ (exp x) x) (/ 6121026514868073 2251799813685248))
+  our alt2: (^ (exp (+ 1 x)) (- x 1))
+  our alt3: (exp (fma x x -1))
+  input score -> herbie score: 0.00976154137166313 -> 0.01327965175342757
+  input score -> alt1 score:   0.00976154137166313 -> 0.008005036215128214
+  input score -> alt2 score:   0.00976154137166313 -> 0.019286261085526234
+  input score -> alt3 score:   0.00976154137166313 -> 0.00963654137166313
 
 [bench_exp_w]
   input:  (- (exp x) 1)
-  herbie ans: (* (+ (sqrt (exp x)) 1.0) (expm1 (* 0.5 x)))
-  our ans:    (expm1 x)
-  herbie improvement: 29.60035498423277 -> 0.014344360937770433
-  our improvement:    29.60035498423277 -> 0.000375
+  herbie: (expm1 x)
+  our alt1: (expm1 x)
+  our alt2: (- (exp x) 1)
+  our alt3: x
+  input score -> herbie score: 28.98914591779233 -> 0.000125
+  input score -> alt1 score:   28.98914591779233 -> 0.000125
+  input score -> alt2 score:   28.98914591779233 -> 28.98914591779233
+  input score -> alt3 score:   28.98914591779233 -> 32.11224351126713
 
 [bench_expanding_square]
   input:  (- (^ (+ 1 x) 2) 1)
-  herbie ans: (fma x x (+ x x))
-  our ans:    (fma x x (* 2 x))
-  herbie improvement: 29.471964447230185 -> 0.016
-  our improvement:    29.471964447230185 -> 0.016
+  herbie: (fma x x (+ x x))
+  our alt1: (fma x x (* 2 x))
+  our alt2: (* x (+ 2 x))
+  our alt3: (+ x (* x (+ 1 x)))
+  input score -> herbie score: 29.15814932784465 -> 0.024
+  input score -> alt1 score:   29.15814932784465 -> 0.024
+  input score -> alt2 score:   29.15814932784465 -> 0.026
+  input score -> alt3 score:   29.15814932784465 -> 0.029448120312590146
 
 [bench_expfmod]
   input:  (- (exp x) (exp (- x 1)))
-  herbie ans: (* (exp (- x 1.0)) (- E 1.0))
-  our ans:    (* (/ 1423408956596761 2251799813685248) (exp x))
-  herbie improvement: 0.5068231203125901 -> 0.021856203125901443
-  our improvement:    0.5068231203125901 -> 0.009625
+  herbie: (* (exp x) 0.6321205588285577)
+  our alt1: (* (/ 1423408956596761 2251799813685248) (exp x))
+  our alt2: (* (/ 3869226701182825 2251799813685248) (* (exp x) (exp -1)))
+  our alt3: (* (/ 3869226701182825 2251799813685248) (exp (- x 1)))
+  input score -> herbie score: 0.5216156015629508 -> 0.00975
+  input score -> alt1 score:   0.5216156015629508 -> 0.00975
+  input score -> alt2 score:   0.5216156015629508 -> 0.01489624062518029
+  input score -> alt3 score:   0.5216156015629508 -> 0.019448323825172222
 
 [bench_expm1]
   input:  (- (exp x) 1)
-  herbie ans: (* (+ (sqrt (exp x)) 1.0) (expm1 (* 0.5 x)))
-  our ans:    (expm1 x)
-  herbie improvement: 28.46603931187974 -> 0.015584962500721156
-  our improvement:    28.46603931187974 -> 0.00025
+  herbie: (expm1 x)
+  our alt1: (expm1 x)
+  our alt2: x
+  our alt3: (- (exp x) 1)
+  input score -> herbie score: 29.315216832764705 -> 0.00025
+  input score -> alt1 score:   29.315216832764705 -> 0.00025
+  input score -> alt2 score:   29.315216832764705 -> 31.79634568631171
+  input score -> alt3 score:   29.315216832764705 -> 29.315216832764705
 
 [bench_expq2]
   input:  (/ (exp x) (- (exp x) 1))
-  herbie ans: (/ -1.0 (expm1 (- x)))
-  our ans:    (/ (exp x) (expm1 x))
-  herbie improvement: 41.535828496481905 -> 0.008875
-  our improvement:    41.535828496481905 -> 0.4779693609377705
+  herbie: (* (exp x) (/ (+ 1.0 (exp x)) (expm1 (+ x x))))
+  our alt1: (/ (exp x) (expm1 x))
+  our alt2: (/ 1 x)
+  our alt3: (+ (/ 1 2) (/ 1 x))
+  input score -> herbie score: 42.01424388463607 -> 0.40349304531403246
+  input score -> alt1 score:   42.01424388463607 -> 0.39025
+  input score -> alt2 score:   42.01424388463607 -> 20.691436992568473
+  input score -> alt3 score:   42.01424388463607 -> 20.641629029277386
 
 [bench_find_atanh]
   input:  (log (/ (+ 1 x) (- 1 x)))
-  herbie ans: (* x (fma (* x x) 0.6666666666666666 2.0))
-  our ans:    (/ (+ (* x (log (/ (- 1 x) (+ 1 x)))) (+ (log (abs (+ (neg 1) (neg x)))) (neg (log (abs (- 1 x)))))) (- 1 x))
-  herbie improvement: 58.499200562589074 -> 0.3727511129128884
-  our improvement:    58.499200562589074 -> 58.48881333234133
+  herbie: (fma 0.6666666666666666 (* (* x x) x) (+ x x))
+  our alt1: (+ x (* x (fma (* (/ 2 3) x) x 1)))
+  our alt2: (fma x 2 (* (/ 2 3) (^ x 3)))
+  our alt3: (* x (+ 2 (* (/ 2 3) (^ x 2))))
+  input score -> herbie score: 58.73205624822038 -> 0.2852390853774599
+  input score -> alt1 score:   58.73205624822038 -> 0.2889139877176979
+  input score -> alt2 score:   58.73205624822038 -> 0.2852390853774599
+  input score -> alt3 score:   58.73205624822038 -> 0.2894131996273345
 
 [bench_fm_repmul]
   input:  (^ a 4)
-  herbie ans: (pow a 4.0)
-  our ans:    (^ a 4)
-  herbie improvement: 0.000125 -> 0.000125
-  our improvement:    0.000125 -> 0.000125
+  herbie: (pow a 4.0)
+  our alt1: (^ a 4)
+  our alt2: 0
+  our alt3: N/A(no alt3)
+  input score -> herbie score: 0.008 -> 0.008
+  input score -> alt1 score:   0.008 -> 0.008
+  input score -> alt2 score:   0.008 -> 39.58169542587439
+  input score -> alt3 score:   0.008 -> N/A(no alt3)
 
 [bench_fm_test1]
   input:  (* 30 d)
-  herbie ans: (* 30.0 d)
-  our ans:    (* 30 d)
-  herbie improvement: 0.024 -> 0.024
-  our improvement:    0.024 -> 0.024
+  herbie: (* 30.0 d)
+  our alt1: (* 30 d)
+  our alt2: 0
+  our alt3: N/A(no alt3)
+  input score -> herbie score: 0.056 -> 0.056
+  input score -> alt1 score:   0.056 -> 0.056
+  input score -> alt2 score:   0.056 -> 61.565495011151945
+  input score -> alt3 score:   0.056 -> N/A(no alt3)
 
 [bench_fm_test5]
   input:  (^ a 10)
-  herbie ans: (pow a 10.0)
-  our ans:    (^ a 10)
-  herbie improvement: 0.025125 -> 0.025125
-  our improvement:    0.025125 -> 0.025125
+  herbie: (pow a 10.0)
+  our alt1: (^ a 10)
+  our alt2: 0
+  our alt3: N/A(no alt3)
+  input score -> herbie score: 0.05 -> 0.05
+  input score -> alt1 score:   0.05 -> 0.05
+  input score -> alt2 score:   0.05 -> 35.34717953722219
+  input score -> alt3 score:   0.05 -> N/A(no alt3)
 
 [bench_fma_simple]
   input:  (neg z)
-  herbie ans: (- z)
-  our ans:    (neg z)
-  herbie improvement: 0.008 -> 0.008
-  our improvement:    0.008 -> 0.008
+  herbie: (- z)
+  our alt1: (neg z)
+  our alt2: 0
+  our alt3: N/A(no alt3)
+  input score -> herbie score: 0.04 -> 0.04
+  input score -> alt1 score:   0.04 -> 0.04
+  input score -> alt2 score:   0.04 -> 61.55828183751459
+  input score -> alt3 score:   0.04 -> N/A(no alt3)
 
 [bench_fma_test1]
   input:  (+ (neg 1) (+ (^ (+ 1 (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2) (neg (* (/ 2028240960365167 5070602400912917605986812821504) t))))
-  herbie ans: (* (/ t 2.5e+31) t)
-  our ans:    (^ (abs (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2)
-  herbie improvement: 11.63874753767965 -> 1.76025
-  our improvement:    11.63874753767965 -> 0.26197669219101566
+  herbie: (* t (* 3.9999999999999997e-32 t))
+  our alt1: (^ (abs (* (/ 2028240960365167 10141204801825835211973625643008) t)) 2)
+  our alt2: (/ (/ 4113761393303014933413986937889 102844034832575377634685573909834406561420991602098741459288064) (^ (/ 1 t) 2))
+  our alt3: (* (/ 4113761393303014933413986937889 102844034832575377634685573909834406561420991602098741459288064) (^ t 2))
+  input score -> herbie score: 11.86910667514432 -> 1.970688721875541
+  input score -> alt1 score:   11.86910667514432 -> 0.2657573312532452
+  input score -> alt2 score:   11.86910667514432 -> 1.5055636100330652
+  input score -> alt3 score:   11.86910667514432 -> 1.970688721875541
 
 [bench_fma_test2]
   input:  (- (* 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t) 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632)
-  herbie ans: (fma 1.7e+308 t -1.7e+308)
-  our ans:    (/ (* 679999999999999975532318315463992697333384297216303498011092476774150916712642263457320367150338831954289049871932755676679664422373428697073479848249894541185898546062641859742652162739831377214097471260114213090849195945545243314578052849415684493013246701999427502602049749661716871978493299179421358358528 (- t 1)) (abs 4))
-  herbie improvement: 31.77619812031259 -> 31.768
-  our improvement:    31.77619812031259 -> 0.04
+  herbie: (fma 1.7e+308 t -1.7e+308)
+  our alt1: (* t (+ 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 (/ -169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t)))
+  our alt2: -679999999999999975532318315463992697333384297216303498011092476774150916712642263457320367150338831954289049871932755676679664422373428697073479848249894541185898546062641859742652162739831377214097471260114213090849195945545243314578052849415684493013246701999427502602049749661716871978493299179421358358528
+  our alt3: (fma -339999999999999987766159157731996348666692148608151749005546238387075458356321131728660183575169415977144524935966377838339832211186714348536739924124947270592949273031320929871326081369915688607048735630057106545424597972772621657289026424707842246506623350999713751301024874830858435989246649589710679179264 (/ 1 2) (* 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632 t))
+  input score -> herbie score: 32.224 -> 32.224
+  input score -> alt1 score:   32.224 -> 0.0
+  input score -> alt2 score:   32.224 -> 15.72
+  input score -> alt3 score:   32.224 -> 15.72
 
 [bench_hyp_acosh]
   input:  (log (+ x (sqrt (- (^ x 2) 1))))
-  herbie ans: (acosh x)
-  our ans:    (acosh x)
-  herbie improvement: 32.513 -> 0.195
-  our improvement:    32.513 -> 0.195
+  herbie: (acosh x)
+  our alt1: (log (* 2 x))
+  our alt2: (- (log 2) (log (/ 1 x)))
+  our alt3: (+ (log 2) (log x))
+  input score -> herbie score: 31.866 -> 0.194125
+  input score -> alt1 score:   31.866 -> 0.6782085295345295
+  input score -> alt2 score:   31.866 -> 0.7762097550551054
+  input score -> alt3 score:   31.866 -> 0.7759787554417844
 
 [bench_hyp_acoth]
   input:  (/ (log (/ (+ 1 x) (- x 1))) 2)
-  herbie ans: (/ (+ 1.0 (cast (! :precision binary32 (/ 0.3333333333333333 (cast (* x x)))))) x)
-  our ans:    (/ (log (/ (+ 1 x) (- x 1))) 2)
-  herbie improvement: 58.38273764803748 -> 0.3670845327590057
-  our improvement:    58.38273764803748 -> 58.38273764803748
+  herbie: (/ (+ 1.0 (cast (! :precision binary32 (/ 0.3333333333333333 (cast (* x x)))))) x)
+  our alt1: (/ (+ 1 (/ (/ 1 3) (^ x 2))) x)
+  our alt2: (/ (+ 1 (* (/ 1 3) (^ (/ 1 x) 2))) x)
+  our alt3: (/ 1 x)
+  input score -> herbie score: 58.48565413459319 -> 0.33267267627965535
+  input score -> alt1 score:   58.48565413459319 -> 0.33267267627965535
+  input score -> alt2 score:   58.48565413459319 -> 0.33267267627965535
+  input score -> alt3 score:   58.48565413459319 -> 0.6989642438062873
 
 [bench_hyp_acsch]
   input:  (log (+ (/ 1 x) (sqrt (+ 1 (/ 1 (^ x 2))))))
-  herbie ans: (asinh (/ 1.0 x))
-  our ans:    (neg (log (/ (abs x) (abs (fma x (sqrt (+ 1 (/ 1 (^ x 2)))) 1)))))
-  herbie improvement: 53.034150875682904 -> 0.103125
-  our improvement:    53.034150875682904 -> 52.942892965004475
+  herbie: (asinh (/ 1.0 x))
+  our alt1: (/ 1 x)
+  our alt2: (/ (- 1 (* (/ 1 6) (^ (/ 1 x) 2))) x)
+  our alt3: (/ (+ 6 (/ -1 (^ x 2))) (* 6 x))
+  input score -> herbie score: 53.24663793983584 -> 0.1145
+  input score -> alt1 score:   53.24663793983584 -> 30.1721495500064
+  input score -> alt2 score:   53.24663793983584 -> 31.748374829602703
+  input score -> alt3 score:   53.24663793983584 -> 31.94313165099772
 
 [bench_hyp_sech]
   input:  (/ 2 (+ (exp x) (exp (neg x))))
-  herbie ans: (/ 1.0 (cosh x))
-  our ans:    (/ 1 (cosh x))
-  herbie improvement: 0.007969360937770432 -> 0.00725
-  our improvement:    0.007969360937770432 -> 0.00725
+  herbie: (/ 1.0 (cosh x))
+  our alt1: (/ 1 (cosh x))
+  our alt2: (/ 2 (+ (exp x) (exp (neg x))))
+  our alt3: (/ (* 2 (exp x)) (fma (exp x) (exp x) 1))
+  input score -> herbie score: 0.013362904096500611 -> 0.012841663471320324
+  input score -> alt1 score:   0.013362904096500611 -> 0.012841663471320324
+  input score -> alt2 score:   0.013362904096500611 -> 0.013362904096500611
+  input score -> alt3 score:   0.013362904096500611 -> 16.060763373695714
 
 [bench_hyp_sinh]
   input:  (/ (- (exp x) (exp (neg x))) 2)
-  herbie ans: (sinh x)
-  our ans:    (sinh x)
-  herbie improvement: 29.04041462746162 -> 0.000375
-  our improvement:    29.04041462746162 -> 0.000375
+  herbie: (sinh x)
+  our alt1: (sinh x)
+  our alt2: (/ (- (exp x) (exp (neg x))) 2)
+  our alt3: x
+  input score -> herbie score: 29.00393645503209 -> 0.000625
+  input score -> alt1 score:   29.00393645503209 -> 0.000625
+  input score -> alt2 score:   29.00393645503209 -> 29.00393645503209
+  input score -> alt3 score:   29.00393645503209 -> 32.51267125068549
 
 [bench_hyp_tanh]
   input:  (/ (- (exp x) (exp (neg x))) (+ (exp x) (exp (neg x))))
-  herbie ans: (tanh x)
-  our ans:    (tanh x)
-  herbie improvement: 58.22636297815902 -> 0.006375
-  our improvement:    58.22636297815902 -> 0.006375
+  herbie: (tanh x)
+  our alt1: (tanh x)
+  our alt2: x
+  our alt3: (/ (- (exp x) (exp (neg x))) (+ (exp x) (exp (neg x))))
+  input score -> herbie score: 58.11185668611128 -> 0.005
+  input score -> alt1 score:   58.11185668611128 -> 0.005
+  input score -> alt2 score:   58.11185668611128 -> 2.2564020659884325
+  input score -> alt3 score:   58.11185668611128 -> 58.11185668611128
 
 [bench_ian_simplification]
   input:  (- (/ 884279719003555 562949953421312) (* 2 (asin (sqrt (/ (- 1 x) 2)))))
-  herbie ans: (/ (fma (acos (sqrt (fma -0.5 x 0.5))) (/ 1.0 (* (acos (sqrt (fma -0.5 x 0.5))) (acos (sqrt (fma -0.5 x 0.5))))) (/ (- 1.5707963267948966 (acos (- (sqrt (fma -0.5 x 0.5))))) (* (acos (sqrt (fma -0.5 x 0.5))) (acos (sqrt (fma -0.5 x 0.5)))))) (* (/ 1.0 (acos (sqrt (fma -0.5 x 0.5)))) (/ 1.0 (acos (sqrt (fma -0.5 x 0.5))))))
-  our ans:    (- (acos (sqrt (- (/ 1 2) (* (/ 1 2) x)))) (asin (sqrt (- (/ 1 2) (* (/ 1 2) x)))))
-  herbie improvement: 51.46239291725041 -> 49.22931788554808
-  our improvement:    51.46239291725041 -> 50.44426769784699
+  herbie: (- (acos (sqrt (fma -0.5 x 0.5))) (asin (sqrt (fma -0.5 x 0.5))))
+  our alt1: (- (acos (sqrt (fma x (/ -1 2) (/ 1 2)))) (asin (sqrt (fma x (/ -1 2) (/ 1 2)))))
+  our alt2: (- (acos (sqrt (- (/ 1 2) (* (/ 1 2) x)))) (asin (sqrt (- (/ 1 2) (* (/ 1 2) x)))))
+  our alt3: (fma -2 (asin (sqrt (fma x (/ -1 2) (/ 1 2)))) (/ 884279719003555 562949953421312))
+  input score -> herbie score: 51.54186402050022 -> 50.52376442069504
+  input score -> alt1 score:   51.54186402050022 -> 50.52376442069504
+  input score -> alt2 score:   51.54186402050022 -> 50.52376442069504
+  input score -> alt3 score:   51.54186402050022 -> 51.54186402050022
 
 [bench_invcot]
   input:  (+ (/ 1 x) (/ -1 (tan x)))
-  herbie ans: (* (copysign 1.0 x) (if (<= (fabs x) 0.003542165399545011) (* (fabs x) (+ 0.3333333333333333 (cast (! :precision binary32 (* 0.022222222222222223 (cast (* (! :precision binary64 (fabs x)) (! :precision binary64 (fabs x))))))))) (+ (/ 1.0 (fabs x)) (/ -1.0 (tan (fabs x))))))
-  our ans:    (+ (/ 1 x) (/ -1 (tan x)))
-  herbie improvement: 29.802000443618866 -> N/A(regime)
-  our improvement:    29.802000443618866 -> 29.802000443618866
+  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 0.00015405333782678748) (fma (* 0.022222222222222223 (fabs x)) (* (fabs x) (fabs x)) (* 0.3333333333333333 (fabs x))) (+ (/ 1.0 (fabs x)) (/ -1.0 (tan (fabs x))))))
+  our alt1: (/ (- (/ (tan x) x) 1) (tan x))
+  our alt2: (+ (/ 1 x) (/ -1 (tan x)))
+  our alt3: (/ (- 1 (/ x (tan x))) x)
+  input score -> herbie score: 29.649465003607187 -> N/A(regime)
+  input score -> alt1 score:   29.649465003607187 -> 29.64696375130437
+  input score -> alt2 score:   29.649465003607187 -> 29.649465003607187
+  input score -> alt3 score:   29.649465003607187 -> 29.73319755617093
 
 [bench_jcobi_4_called]
   input:  (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
-  herbie ans: (if (<= (/ (pow n 2.0) (* 4.0 (- (* 4.0 (pow n 2.0)) 1.0))) 0.1) (/ (* n n) (fma 16.0 (* n n) -4.0)) 0.0625)
-  our ans:    (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
-  herbie improvement: 15.812495586460104 -> N/A(regime)
-  our improvement:    15.812495586460104 -> 15.812495586460104
+  herbie: (if (<= (fabs n) 2000000.0) (/ (* (fabs n) (fabs n)) (fma 16.0 (* (fabs n) (fabs n)) -4.0)) 0.0625)
+  our alt1: (/ (^ n 2) (fma n (* 16 n) -4))
+  our alt2: (/ (^ n 2) (- (* 16 (^ n 2)) 4))
+  our alt3: (/ (^ n 2) (* 4 (- (* 4 (^ n 2)) 1)))
+  input score -> herbie score: 16.371867938336166 -> N/A(regime)
+  input score -> alt1 score:   16.371867938336166 -> 16.371992938336167
+  input score -> alt2 score:   16.371867938336166 -> 16.371867938336166
+  input score -> alt3 score:   16.371867938336166 -> 16.371867938336166
 
 [bench_jmat_erf]
   input:  (+ 1 (/ (* -1 (* (+ (/ 2295300911148351 9007199254740992) (/ (- (/ (+ (/ 6401478394306903 4503599627370496) (/ (- (/ (/ 4780145094533421 4503599627370496) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))) (/ 6544414927309881 4503599627370496)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))) (/ 5125037576950889 18014398509481984)) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x))))) (exp (neg (^ (abs x) 2))))) (+ 1 (* (/ 1475339155889891 4503599627370496) (abs x)))))
-  herbie ans: (if (<= (+ 1.0 (/ (* -1.0 (* (+ (/ 2295300911148351.0 9007199254740992.0) (/ (- (/ (+ (/ 6401478394306903.0 4503599627370496.0) (/ (- (/ (/ 4780145094533421.0 4503599627370496.0) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x)))) (/ 6544414927309881.0 4503599627370496.0)) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x)))) (/ 5125037576950889.0 18014398509481984.0)) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) (exp (- (pow (fabs x) 2.0))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) 2e-9) (* (fma (* (fma -0.3275911 (fabs x) -1.0) (exp (* x x))) (/ 1.0 (- (/ (- (/ (+ (/ (- (/ 1.061405429 (fma 0.3275911 (fabs x) 1.0)) 1.453152027) (fma 0.3275911 (fabs x) 1.0)) 1.421413741) (fma 0.3275911 (fabs x) 1.0)) 0.284496736) (fma 0.3275911 (fabs x) 1.0)) -0.254829592)) 1.0) (/ (- (/ (- 0.284496736 (/ (+ (/ (cast (! :precision binary32 (- (/ 1.061405429 (cast (! :precision binary64 (fma 0.3275911 (fabs x) 1.0)))) 1.453152027))) (fma (fabs x) 0.3275911 1.0)) 1.421413741) (fma (fabs x) 0.3275911 1.0))) (fma (fabs x) 0.3275911 1.0)) 0.254829592) (* (exp (* x x)) (fma (fabs x) 0.3275911 1.0)))) (+ 1.0 (/ (* -1.0 (- (/ (+ 0.254829592 (/ (+ (/ (- (/ 1.061405429 (fma (fabs x) 0.3275911 1.0)) 1.453152027) (fma (fabs x) 0.3275911 1.0)) 1.421413741) (* (fma (fabs x) 0.3275911 1.0) (fma (fabs x) 0.3275911 1.0)))) (exp (* x x))) (/ (/ 0.284496736 (fma (fabs x) 0.3275911 1.0)) (exp (* x x))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))))
-  our ans:    (+ 1 (+ (/ 2295300911148351 (* 9007199254740992 (* (exp (^ (abs x) 2)) (fma (/ -1475339155889891 4503599627370496) (abs x) -1)))) (+ (/ 5125037576950889 (* 18014398509481984 (* (^ (fma (/ -1475339155889891 4503599627370496) (abs x) -1) 2) (exp (^ (abs x) 2))))) (/ (+ (neg (/ 6401478394306903 4503599627370496)) (neg (/ (+ (neg (/ 6544414927309881 4503599627370496)) (neg (/ (/ -4780145094533421 4503599627370496) (fma (/ 1475339155889891 4503599627370496) (abs x) 1)))) (fma (/ 1475339155889891 4503599627370496) (abs x) 1)))) (* (fma (/ 1475339155889891 4503599627370496) (abs x) 1) (* (^ (fma (/ -1475339155889891 4503599627370496) (abs x) -1) 2) (exp (^ (abs x) 2))))))))
-  herbie improvement: 14.024685841109331 -> N/A(regime)
-  our improvement:    14.024685841109331 -> 0.7505958055655108
+  herbie: (if (<= (+ 1.0 (/ (* -1.0 (* (+ (/ 2295300911148351.0 9007199254740992.0) (/ (- (/ (+ (/ 6401478394306903.0 4503599627370496.0) (/ (- (/ (/ 4780145094533421.0 4503599627370496.0) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x)))) (/ 6544414927309881.0 4503599627370496.0)) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x)))) (/ 5125037576950889.0 18014398509481984.0)) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) (exp (- (pow (fabs x) 2.0))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))) 1.1e-9) (* (fma 1.0 (* (/ (fma -0.3275911 (fabs x) -1.0) (- (/ (fma (- 1.421413741 (/ (- 1.453152027 (/ 1.061405429 (fma 0.3275911 (fabs x) 1.0))) (fma 0.3275911 (fabs x) 1.0))) (/ 1.0 (fma 0.3275911 (fabs x) 1.0)) -0.284496736) (fma (fabs x) 0.3275911 1.0)) -0.254829592)) (exp (* x x))) 1.0) (/ (- (/ (- 0.284496736 (/ (+ (/ (cast (! :precision binary32 (- (/ 1.061405429 (cast (! :precision binary64 (fma 0.3275911 (fabs x) 1.0)))) 1.453152027))) (fma (fabs x) 0.3275911 1.0)) 1.421413741) (fma (fabs x) 0.3275911 1.0))) (fma (fabs x) 0.3275911 1.0)) 0.254829592) (* (exp (* x x)) (fma (fabs x) 0.3275911 1.0)))) (+ 1.0 (/ (* -1.0 (* (+ (/ 2295300911148351.0 9007199254740992.0) (fma (/ 1.421413741 (fma (fabs x) 0.3275911 1.0)) (/ 1.0 (fma (fabs x) 0.3275911 1.0)) (/ (- (/ (- (/ 1.061405429 (fma (fabs x) 0.3275911 1.0)) 1.453152027) (* (fma (fabs x) 0.3275911 1.0) (fma (fabs x) 0.3275911 1.0))) 0.284496736) (fma (fabs x) 0.3275911 1.0)))) (exp (- (pow (fabs x) 2.0))))) (+ 1.0 (* (/ 1475339155889891.0 4503599627370496.0) (fabs x))))))
+  our alt1: (+ (/ (+ 1 (/ (- (/ (+ (/ 5125037576950889 18014398509481984) (/ (- (/ (+ (/ 6544414927309881 4503599627370496) (/ (/ -4780145094533421 4503599627370496) (fma (abs x) (/ 1475339155889891 4503599627370496) 1))) (fma (abs x) (/ 1475339155889891 4503599627370496) 1)) (/ 6401478394306903 4503599627370496)) (fma (abs x) (/ 1475339155889891 4503599627370496) 1))) (fma (abs x) (/ 1475339155889891 4503599627370496) 1)) (/ 2295300911148351 9007199254740992)) (exp (^ (abs x) 2)))) (fma (abs x) (/ 1475339155889891 4503599627370496) 1)) (/ (* (/ 1475339155889891 4503599627370496) (abs x)) (fma (abs x) (/ 1475339155889891 4503599627370496) 1)))
+  our alt2: (+ (/ (- (/ (+ (/ 2295300911148351 9007199254740992) (/ (- (/ 5125037576950889 18014398509481984) (/ (+ (neg (/ 6401478394306903 4503599627370496)) (neg (/ (+ (/ 6544414927309881 4503599627370496) (/ (/ -4780145094533421 4503599627370496) (fma (abs x) (/ 1475339155889891 4503599627370496) 1))) (fma (/ -1475339155889891 4503599627370496) (abs x) -1)))) (fma (/ -1475339155889891 4503599627370496) (abs x) -1))) (fma (/ -1475339155889891 4503599627370496) (abs x) -1))) (exp (^ (abs x) 2))) 1) (fma (/ -1475339155889891 4503599627370496) (abs x) -1)) (/ (* (/ -1475339155889891 4503599627370496) (abs x)) (fma (/ -1475339155889891 4503599627370496) (abs x) -1)))
+  our alt3: (fma (/ (- (/ (+ (/ 5125037576950889 18014398509481984) (/ (- (/ (+ (/ 6544414927309881 4503599627370496) (/ (/ -4780145094533421 4503599627370496) (fma (abs x) (/ 1475339155889891 4503599627370496) 1))) (fma (abs x) (/ 1475339155889891 4503599627370496) 1)) (/ 6401478394306903 4503599627370496)) (fma (abs x) (/ 1475339155889891 4503599627370496) 1))) (fma (abs x) (/ 1475339155889891 4503599627370496) 1)) (/ 2295300911148351 9007199254740992)) (exp (^ (abs x) 2))) (/ 1 (fma (abs x) (/ 1475339155889891 4503599627370496) 1)) 1)
+  input score -> herbie score: 13.384516300411748 -> N/A(regime)
+  input score -> alt1 score:   13.384516300411748 -> 13.37721792859594
+  input score -> alt2 score:   13.384516300411748 -> 13.37721792859594
+  input score -> alt3 score:   13.384516300411748 -> 13.385489685359502
 
 [bench_kahan_exp]
   input:  (/ (- (exp x) 1) x)
-  herbie ans: (/ 1.0 (/ x (expm1 x)))
-  our ans:    (/ (expm1 x) x)
-  herbie improvement: 29.906155765605224 -> 0.00625
-  our improvement:    29.906155765605224 -> 0.00625
+  herbie: (/ (expm1 x) x)
+  our alt1: (/ (expm1 x) x)
+  our alt2: (/ (- (exp x) 1) x)
+  our alt3: 1
+  input score -> herbie score: 30.381252312308053 -> 0.007625
+  input score -> alt1 score:   30.381252312308053 -> 0.007625
+  input score -> alt2 score:   30.381252312308053 -> 30.381252312308053
+  input score -> alt3 score:   30.381252312308053 -> 31.429675559545274
 
 [bench_lambertw_est]
   input:  (- (log x) (log (log x)))
-  herbie ans: (log (/ x (log x)))
-  our ans:    (log (/ x (log x)))
-  herbie improvement: 0.2675731203125902 -> 0.004375
-  our improvement:    0.2675731203125902 -> 0.004375
+  herbie: (log (/ x (log x)))
+  our alt1: (log (/ x (log x)))
+  our alt2: (- (log x) (log (log x)))
+  our alt3: 0
+  input score -> herbie score: 0.25575 -> 0.003625
+  input score -> alt1 score:   0.25575 -> 0.003625
+  input score -> alt2 score:   0.25575 -> 0.25575
+  input score -> alt3 score:   0.25575 -> 62.00973326082933
 
 [bench_ln1px]
   input:  (log (+ 1 x))
-  herbie ans: (log1p x)
-  our ans:    (log1p x)
-  herbie improvement: 39.01942600540356 -> 0.0
-  our improvement:    39.01942600540356 -> 0.0
+  herbie: (log1p x)
+  our alt1: (log1p x)
+  our alt2: x
+  our alt3: (log (+ 1 x))
+  input score -> herbie score: 38.981061562778294 -> 0.0
+  input score -> alt1 score:   38.981061562778294 -> 0.0
+  input score -> alt2 score:   38.981061562778294 -> 21.106954314542694
+  input score -> alt3 score:   38.981061562778294 -> 38.981061562778294
 
 [bench_logistic]
   input:  (- (/ 2 (+ 1 (exp (* -2 x)))) 1)
-  herbie ans: (if (<= (* -2.0 x) -0.01) (fma (/ (/ -2.0 (- -1.0 (exp (- (+ x x))))) (- -1.0 (exp (- (+ x x))))) (fma (exp (- (+ x x))) -0.5 -0.5) (- (/ -1.0 (- -1.0 (exp (- (+ x x))))) 1.0)) (if (<= (* -2.0 x) 2e-5) (fma (cast (! :precision binary32 (cast (* -0.3333333333333333 x)))) (* x x) x) (+ (+ -1.0 (/ -1.0 (- -1.0 (exp (- (+ x x)))))) (/ -1.0 (- -1.0 (exp (- (+ x x))))))))
-  our ans:    (tanh x)
-  herbie improvement: 28.776754331188606 -> N/A(regime)
-  our improvement:    28.776754331188606 -> 0.002125
+  herbie: (if (<= (- (/ 2.0 (+ 1.0 (exp (* -2.0 x)))) 1.0) -1.0) (- (/ 0.0 (- 0.0 x)) 1.0) (if (<= (- (/ 2.0 (+ 1.0 (exp (* -2.0 x)))) 1.0) 1e-5) (fma (* -0.3333333333333333 x) (* x x) x) (- (/ 2.0 (+ 1.0 (exp (- (+ x x))))) 1.0)))
+  our alt1: (tanh x)
+  our alt2: (- (/ 2 (+ 1 (exp (* -2 x)))) 1)
+  our alt3: x
+  input score -> herbie score: 29.387107072647037 -> N/A(regime)
+  input score -> alt1 score:   29.387107072647037 -> 0.00225
+  input score -> alt2 score:   29.387107072647037 -> 29.387107072647037
+  input score -> alt3 score:   29.387107072647037 -> 30.54654237237652
 
 [bench_logq]
   input:  (log (/ (- 1 eps) (+ 1 eps)))
-  herbie ans: (* eps (fma (* eps eps) -0.6666666666666666 -2.0))
-  our ans:    (neg (log (/ (abs (+ 1 eps)) (abs (- 1 eps)))))
-  herbie improvement: 58.55548772012353 -> 0.3395799921101162
-  our improvement:    58.55548772012353 -> 58.55613453607739
+  herbie: (- (cast (! :precision binary32 (cast (* (* (* eps eps) -0.6666666666666666) eps)))) (+ eps eps))
+  our alt1: (* eps (fma (^ eps 2) (/ -2 3) -2))
+  our alt2: (* eps (+ (neg 2) (neg (* (/ 2 3) (^ eps 2)))))
+  our alt3: (* -2 eps)
+  input score -> herbie score: 58.63955753124972 -> 0.328044444483615
+  input score -> alt1 score:   58.63955753124972 -> 0.33246387266417304
+  input score -> alt2 score:   58.63955753124972 -> 0.33246387266417304
+  input score -> alt3 score:   58.63955753124972 -> 0.6296215556855136
 
 [bench_logs]
   input:  (+ (neg 1) (+ (* (+ 1 n) (log (+ 1 n))) (neg (* n (log n)))))
-  herbie ans: (+ (log (- n -1.0)) (fma n (log1p (/ 1.0 n)) -1.0))
-  our ans:    (- (fma n (- (log1p n) (log n)) (log1p n)) 1)
-  herbie improvement: 29.870930543844143 -> 0.03898120312590145
-  our improvement:    29.870930543844143 -> 21.453648426309076
+  herbie: (+ (log (- n -1.0)) (fma n (log1p (/ 1.0 n)) -1.0))
+  our alt1: (neg (log (/ 1 n)))
+  our alt2: (log n)
+  our alt3: (+ (neg 1) (+ (* (+ 1 n) (log (+ 1 n))) (neg (* n (log n)))))
+  input score -> herbie score: 30.486436210456215 -> 0.029000203512582076
+  input score -> alt1 score:   30.486436210456215 -> 27.646574850237407
+  input score -> alt2 score:   30.486436210456215 -> 27.644808770630252
+  input score -> alt3 score:   30.486436210456215 -> 30.486436210456215
 
 [bench_martel_p14]
   input:  (+ 6 (+ (^ x 3) (+ (* 6 (^ x 2)) (* 11 x))))
-  herbie ans: (fma x (fma (- x -6.0) x 11.0) 6.0)
-  our ans:    (fma x (* x (+ 6 x)) (fma x 11 6))
-  herbie improvement: 7.834896196592246 -> 0.04537495596706604
-  our improvement:    7.834896196592246 -> 0.048380113633492434
+  herbie: (fma 11.0 x (fma (* (- x -6.0) x) x 6.0))
+  our alt1: (fma x 11 (fma x (* x (+ 6 x)) 6))
+  our alt2: (fma x (+ 11 (* x (+ 6 x))) 6)
+  our alt3: (+ 6 (+ (* x (fma 6 x 11)) (^ x 3)))
+  input score -> herbie score: 7.7859680001345115 -> 0.05877072071816467
+  input score -> alt1 score:   7.7859680001345115 -> 0.05877072071816467
+  input score -> alt2 score:   7.7859680001345115 -> 0.05307866957750996
+  input score -> alt3 score:   7.7859680001345115 -> 7.783246454170045
 
 [bench_martel_p15_1]
   input:  (* (+ 1 x) (* (+ 2 x) (+ 3 x)))
-  herbie ans: (* (* (+ 3.0 x) (+ x 1.0)) (+ 2.0 x))
-  our ans:    (* (+ 1 x) (* (+ 2 x) (+ 3 x)))
-  herbie improvement: 0.06668872187554087 -> 0.06810620312590146
-  our improvement:    0.06668872187554087 -> 0.06668872187554087
+  herbie: (* (fma x (+ 2.0 x) (+ 2.0 x)) (+ 3.0 x))
+  our alt1: (* -1 (* (+ (neg 3) (neg x)) (* (+ 1 x) (+ 2 x))))
+  our alt2: (* (+ 2 x) (* (+ 3 x) (+ 1 x)))
+  our alt3: (* (+ 1 x) (* (+ 2 x) (+ 3 x)))
+  input score -> herbie score: 0.0795330828133113 -> 0.07843872187554086
+  input score -> alt1 score:   0.0795330828133113 -> 0.0794293234384916
+  input score -> alt2 score:   0.0795330828133113 -> 0.07860620312590144
+  input score -> alt3 score:   0.0795330828133113 -> 0.0795330828133113
 
 [bench_martel_p15_2]
   input:  (+ (* (^ x 2) (+ 3 x)) (* 2 (+ 3 (+ (^ x 2) (* 3 x)))))
-  herbie ans: (fma (* (- x -2.0) x) (+ 3.0 x) 6.0)
-  our ans:    (fma x (* (+ 3 x) (+ 2 x)) 6)
-  herbie improvement: 8.262375 -> 0.05014624062518029
-  our improvement:    8.262375 -> 0.04977124062518029
+  herbie: (fma (* (+ 3.0 x) x) (- x -2.0) 6.0)
+  our alt1: (+ 6 (* x (* (+ 3 x) (+ 2 x))))
+  our alt2: (fma (+ 3 x) (* x (+ 2 x)) 6)
+  our alt3: (fma 2 (fma x (+ 3 x) 3) (* (^ x 2) (+ 3 x)))
+  input score -> herbie score: 8.39496936093777 -> 0.056875
+  input score -> alt1 score:   8.39496936093777 -> 0.057125
+  input score -> alt2 score:   8.39496936093777 -> 0.059125
+  input score -> alt3 score:   8.39496936093777 -> 8.385573120312591
 
 [bench_martel_p15_3]
   input:  (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie ans: (fma x (fma (+ x 6.0) x 11.0) 6.0)
-  our ans:    (fma x (* x (+ 6 x)) (fma x 11 6))
-  herbie improvement: 0.05241795026721822 -> 0.052403602336311986
-  our improvement:    0.05241795026721822 -> 0.05687340800150907
+  herbie: (fma 11.0 x (fma (* (+ x 6.0) x) x 6.0))
+  our alt1: (+ 6 (* x (+ 11 (* x (+ 6 x)))))
+  our alt2: (^ x 3)
+  our alt3: (/ 1 (^ (/ 1 x) 3))
+  input score -> herbie score: 0.05979248125036058 -> 0.06325503621512822
+  input score -> alt1 score:   0.05979248125036058 -> 0.05979248125036058
+  input score -> alt2 score:   0.05979248125036058 -> 32.35805378965397
+  input score -> alt3 score:   0.05979248125036058 -> 32.435239776028574
 
 [bench_martel_p15_4]
   input:  (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie ans: (fma x (fma (+ x 6.0) x 11.0) 6.0)
-  our ans:    (+ 6 (* x (+ 11 (* x (+ 6 x)))))
-  herbie improvement: 0.05480742895232966 -> 0.05432312031259015
-  our improvement:    0.05480742895232966 -> 0.05480742895232966
+  herbie: (fma 11.0 x (fma (* (+ x 6.0) x) x 6.0))
+  our alt1: (+ 6 (* x (+ 11 (* x (+ 6 x)))))
+  our alt2: (^ x 3)
+  our alt3: (/ 1 (^ (/ 1 x) 3))
+  input score -> herbie score: 0.06307532783744726 -> 0.066682458093217
+  input score -> alt1 score:   0.06307532783744726 -> 0.06307532783744726
+  input score -> alt2 score:   0.06307532783744726 -> 31.159659315358624
+  input score -> alt3 score:   0.06307532783744726 -> 31.23465133159811
 
 [bench_martel_p6]
   input:  (/ (- x 1) (- (sqrt x) 1))
-  herbie ans: (+ 1.0 (sqrt x))
-  our ans:    (+ (/ x (- (sqrt x) 1)) (/ -1 (- (sqrt x) 1)))
-  herbie improvement: 0.26831148163704127 -> 0.00175
-  our improvement:    0.26831148163704127 -> 0.2708499102026902
+  herbie: (+ 1.0 (sqrt x))
+  our alt1: (+ 1 (sqrt x))
+  our alt2: (+ (/ x (- (sqrt x) 1)) (/ -1 (- (sqrt x) 1)))
+  our alt3: (fma x (/ 1 (- (sqrt x) 1)) (/ -1 (- (sqrt x) 1)))
+  input score -> herbie score: 0.2624906015629507 -> 0.0025
+  input score -> alt1 score:   0.2624906015629507 -> 0.0025
+  input score -> alt2 score:   0.2624906015629507 -> 0.2634730793556947
+  input score -> alt3 score:   0.2624906015629507 -> 0.2770712566413681
 
 [bench_mathjs_cube]
   input:  (^ x 3)
-  herbie ans: (pow x 3.0)
-  our ans:    (^ x 3)
-  herbie improvement: 0.106125 -> 0.106125
-  our improvement:    0.106125 -> 0.106125
+  herbie: (pow x 3.0)
+  our alt1: (^ x 3)
+  our alt2: (/ 1 (^ (/ 1 x) 3))
+  our alt3: 0
+  input score -> herbie score: 0.103625 -> 0.103625
+  input score -> alt1 score:   0.103625 -> 0.103625
+  input score -> alt2 score:   0.103625 -> 0.4957386502196246
+  input score -> alt3 score:   0.103625 -> 42.65328778744837
 
 [bench_neg_log]
   input:  (neg (log (- (/ 1 x) 1)))
-  herbie ans: (log (/ x (- 1.0 x)))
-  our ans:    (log (/ x (- 1 x)))
-  herbie improvement: 0.03142987917662049 -> 0.00435617563761847
-  our improvement:    0.03142987917662049 -> 0.00435617563761847
+  herbie: (log (/ x (- 1.0 x)))
+  our alt1: (neg (log (- (/ 1 x) 1)))
+  our alt2: (+ (log x) x)
+  our alt3: (log x)
+  input score -> herbie score: 0.01980458894276715 -> 0.0033859328551562925
+  input score -> alt1 score:   0.01980458894276715 -> 0.01980458894276715
+  input score -> alt2 score:   0.01980458894276715 -> 0.5015749292657528
+  input score -> alt3 score:   0.01980458894276715 -> 1.1289081102406995
 
 [bench_qlog]
   input:  (/ (log (- 1 x)) (log (+ 1 x)))
-  herbie ans: (/ (- (* (* x x) -0.5) x) (fma -0.5 (* x x) x))
-  our ans:    (/ (log1p (neg x)) (log1p x))
-  herbie improvement: 61.09969916032629 -> 0.4416162633296161
-  our improvement:    61.09969916032629 -> 0.024231203125901445
+  herbie: (/ (fma -0.5 (* x x) (- x)) (* x (fma -0.5 x 1.0)))
+  our alt1: (/ (log1p (neg x)) (log1p x))
+  our alt2: (+ (neg 1) (neg x))
+  our alt3: -1
+  input score -> herbie score: 61.23594765131771 -> 0.5033029039045295
+  input score -> alt1 score:   61.23594765131771 -> 0.024075564063671877
+  input score -> alt2 score:   61.23594765131771 -> 0.7515574511265556
+  input score -> alt3 score:   61.23594765131771 -> 1.4648143007545829
 
 [bench_rosa_poly]
   input:  (- (* (/ 2150310427208497 2251799813685248) x) (* (/ 4647935950575487 36028797018963968) (^ x 3)))
-  herbie ans: (fma (* -0.12900613773279798 x) (* x x) (* x 0.954929658551372))
-  our ans:    (* -1 (* x (fma x (* (/ 4647935950575487 36028797018963968) x) (/ -2150310427208497 2251799813685248))))
-  herbie improvement: 0.08054248125036058 -> 0.07758496250072117
-  our improvement:    0.08054248125036058 -> 0.07724060156295073
+  herbie: (- (* (/ 2150310427208497.0 2251799813685248.0) x) (* 0.12900613773279798 (pow x 3.0)))
+  our alt1: (fma (^ x 2) (* (/ -4647935950575487 36028797018963968) x) (* (/ 2150310427208497 2251799813685248) x))
+  our alt2: (* x (fma x (* (/ -4647935950575487 36028797018963968) x) (/ 2150310427208497 2251799813685248)))
+  our alt3: (* -1 (* x (fma x (* (/ 4647935950575487 36028797018963968) x) (/ -2150310427208497 2251799813685248))))
+  input score -> herbie score: 0.08809436093777043 -> 0.08809436093777043
+  input score -> alt1 score:   0.08809436093777043 -> 0.05878084257481164
+  input score -> alt2 score:   0.08809436093777043 -> 0.05881372187554086
+  input score -> alt3 score:   0.08809436093777043 -> 0.05881372187554086
 
 [bench_rust_acosh]
   input:  (log (+ x (sqrt (- (^ x 2) 1))))
-  herbie ans: (acosh x)
-  our ans:    (acosh x)
-  herbie improvement: 32.21008048202372 -> 0.194
-  our improvement:    32.21008048202372 -> 0.194
+  herbie: (acosh x)
+  our alt1: (log (* 2 x))
+  our alt2: (- (log 2) (log (/ 1 x)))
+  our alt3: (log (+ x (sqrt (- (^ x 2) 1))))
+  input score -> herbie score: 32.04160091936526 -> 0.18725
+  input score -> alt1 score:   32.04160091936526 -> 0.5476218082437762
+  input score -> alt2 score:   32.04160091936526 -> 0.7116006257753982
+  input score -> alt3 score:   32.04160091936526 -> 32.04160091936526
 
 [bench_rust_acosh2]
   input:  (log (+ x (* (sqrt (- x 1)) (sqrt (+ 1 x)))))
-  herbie ans: (acosh x)
-  our ans:    (log (+ x (* (sqrt (- x 1)) (sqrt (+ 1 x)))))
-  herbie improvement: 0.050625 -> 0.195375
-  our improvement:    0.050625 -> 0.050625
+  herbie: (log (fma (sqrt (+ 1.0 x)) (sqrt (- x 1.0)) x))
+  our alt1: (acosh x)
+  our alt2: (log (+ x (* (sqrt (- x 1)) (sqrt (+ 1 x)))))
+  our alt3: (log (fma 2 x -8))
+  input score -> herbie score: 0.08319812031259015 -> 0.08244812031259015
+  input score -> alt1 score:   0.08319812031259015 -> 0.1965
+  input score -> alt2 score:   0.08319812031259015 -> 0.08319812031259015
+  input score -> alt3 score:   0.08319812031259015 -> 1.3737682948804109
 
 [bench_rust_asinh]
   input:  (log (+ x (sqrt (+ 1 (^ x 2)))))
-  herbie ans: (asinh x)
-  our ans:    (asinh x)
-  herbie improvement: 52.97474567828768 -> 0.10125
-  our improvement:    52.97474567828768 -> 0.10125
+  herbie: (asinh x)
+  our alt1: (asinh x)
+  our alt2: x
+  our alt3: (log (+ x (sqrt (+ 1 (^ x 2)))))
+  input score -> herbie score: 52.96542817371558 -> 0.100875
+  input score -> alt1 score:   52.96542817371558 -> 0.100875
+  input score -> alt2 score:   52.96542817371558 -> 30.47354853094163
+  input score -> alt3 score:   52.96542817371558 -> 52.96542817371558
 
 [bench_sidey_2]
   input:  (- 1 (sqrt (* (/ 1 2) (+ 1 (/ 1 (sqrt (+ 1 (^ x 2))))))))
-  herbie ans: (if (<= (- 1.0 (sqrt (* (/ 1.0 2.0) (+ 1.0 (/ 1.0 (sqrt (+ 1.0 (pow x 2.0)))))))) 4e-7) (* x (* (fma -0.0859375 (* x x) 0.125) x)) (/ (- 1.0 (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5)) (+ 1.0 (sqrt (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5)))))
-  our ans:    (/ (+ (/ 1 2) (/ (/ -1 2) (cosh (asinh x)))) (+ 1 (sqrt (fma (/ 1 2) (cos (atan x)) (/ 1 2)))))
-  herbie improvement: 15.468772682933787 -> N/A(regime)
-  our improvement:    15.468772682933787 -> 14.982087854137054
+  herbie: (if (<= (- 1.0 (sqrt (* (/ 1.0 2.0) (+ 1.0 (/ 1.0 (sqrt (+ 1.0 (pow x 2.0)))))))) 1e-11) (* (* x x) (fma x (* -0.0859375 x) 0.125)) (/ (- (/ 0.5 (sqrt (fma x x 1.0))) 0.5) (- -1.0 (sqrt (- (/ 0.5 (sqrt (fma x x 1.0))) -0.5)))))
+  our alt1: (- 1 (sqrt (* (/ 1 2) (+ 1 (/ 1 (sqrt (+ 1 (^ x 2))))))))
+  our alt2: (/ (/ 1 2) (+ 1 (sqrt (/ 1 2))))
+  our alt3: (- 1 (sqrt (/ 1 2)))
+  input score -> herbie score: 15.910967889624668 -> N/A(regime)
+  input score -> alt1 score:   15.910967889624668 -> 15.910967889624668
+  input score -> alt2 score:   15.910967889624668 -> 31.22030762127098
+  input score -> alt3 score:   15.910967889624668 -> 31.695537127699236
 
 [bench_sqrt_A]
   input:  (- (sqrt (+ 1 x)) (sqrt x))
-  herbie ans: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
-  our ans:    (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
-  herbie improvement: 30.211915824018945 -> 0.16024548906511418
-  our improvement:    30.211915824018945 -> 0.16024548906511418
+  herbie: (/ 1.0 (+ (sqrt x) (sqrt (+ x 1.0))))
+  our alt1: (/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))
+  our alt2: (/ (* (sqrt 2) (sqrt (/ 1 2))) (+ (sqrt (+ 1 x)) (sqrt x)))
+  our alt3: (/ 1 (+ 1 (sqrt x)))
+  input score -> herbie score: 29.57090083678814 -> 0.16037988750216345
+  input score -> alt1 score:   29.57090083678814 -> 0.16037988750216345
+  input score -> alt2 score:   29.57090083678814 -> 1.1451578004717682
+  input score -> alt3 score:   29.57090083678814 -> 26.490670706312144
 
 [bench_sqrt_B]
   input:  (- (sqrt x) (sqrt (- x 1)))
-  herbie ans: (/ 1.0 (+ (sqrt (- x 1.0)) (sqrt x)))
-  our ans:    (/ 1 (+ (sqrt x) (sqrt (- x 1))))
-  herbie improvement: 59.751724388770874 -> 0.2624693609377705
-  our improvement:    59.751724388770874 -> 0.2624693609377705
+  herbie: (/ 1.0 (fma x (/ (sqrt x) x) (sqrt (- x 1.0))))
+  our alt1: CRASHED
+  our alt2: N/A
+  our alt3: N/A
+  input score -> herbie score: NaN -> N/A(subprocess crashed)
+  input score -> alt1 score:   NaN -> NaN
+  input score -> alt2 score:   NaN -> N/A
+  input score -> alt3 score:   NaN -> N/A
 
 [bench_sqrt_C]
   input:  (- (sqrt (+ 1 (^ x 2))) x)
-  herbie ans: (if (<= x -79338780334977630.0) (* -2.0 x) (if (<= x 114667.02962904707) (exp (asinh (- x))) (/ 0.5 x)))
-  our ans:    (/ 1 (^ (exp (* (/ 1 2) (asinh x))) 2))
-  herbie improvement: 22.72807885233927 -> N/A(regime)
-  our improvement:    22.72807885233927 -> 2.9964925029573464
+  herbie: (if (<= x -0.3930967802922597) (* -2.0 x) (if (<= x 93.91789423061682) (/ 1.0 (+ (sqrt (fma x x 1.0)) x)) (/ 0.5 x)))
+  our alt1: (- (sqrt (+ 1 (^ x 2))) x)
+  our alt2: (- 1 x)
+  our alt3: (fma x (/ -1 2) (fma x (/ -1 2) 1))
+  input score -> herbie score: 23.19851126570017 -> N/A(regime)
+  input score -> alt1 score:   23.19851126570017 -> 23.19851126570017
+  input score -> alt2 score:   23.19851126570017 -> 28.76755645277619
+  input score -> alt3 score:   23.19851126570017 -> 28.775159697703984
 
 [bench_sqrt_D]
   input:  (/ (- (sqrt (+ 1 x)) 1) x)
-  herbie ans: (if (<= x 1e+86) (/ x (fma (sqrt (- x -1.0)) x x)) (sqrt (/ 1.0 x)))
-  our ans:    (+ (/ (sqrt (+ 1 x)) x) (/ -1 x))
-  herbie improvement: 40.08051924491482 -> N/A(regime)
-  our improvement:    40.08051924491482 -> 39.768800110383175
+  herbie: (if (<= x 1e+31) (/ x (fma (sqrt (- x -1.0)) x x)) (sqrt (/ 1.0 x)))
+  our alt1: (/ 1 2)
+  our alt2: (fma x (/ -1 8) (/ 1 2))
+  our alt3: (- (/ 1 2) (* (/ 1 8) x))
+  input score -> herbie score: 39.73901627003768 -> N/A(regime)
+  input score -> alt1 score:   39.73901627003768 -> 21.096590494638555
+  input score -> alt2 score:   39.73901627003768 -> 22.213612847852925
+  input score -> alt3 score:   39.73901627003768 -> 22.213612847852925
 
 [bench_sqrt_E]
   input:  (/ (- 1 (sqrt (- 1 x))) x)
-  herbie ans: (if (<= x -5e+33) (sqrt (/ -1.0 x)) (/ x (fma (sqrt (- 1.0 x)) x x)))
-  our ans:    (+ (/ 1 x) (/ (sqrt (- 1 x)) (neg x)))
-  herbie improvement: 39.957413706684406 -> N/A(regime)
-  our improvement:    39.957413706684406 -> 39.68164036674748
+  herbie: (/ 1.0 (- (sqrt (- 1.0 x)) -1.0))
+  our alt1: (/ 1 2)
+  our alt2: (fma x (/ 1 8) (/ 1 2))
+  our alt3: (+ (/ 1 2) (* (/ 1 8) x))
+  input score -> herbie score: 40.35572067958557 -> 0.10395996250072116
+  input score -> alt1 score:   40.35572067958557 -> 20.446921328696288
+  input score -> alt2 score:   40.35572067958557 -> 21.43565813635662
+  input score -> alt3 score:   40.35572067958557 -> 21.43565813635662
 
 [bench_sqrt_times]
   input:  (* (sqrt (- x 1)) (sqrt x))
-  herbie ans: (* (sqrt (- x 1.0)) (/ 1.0 (pow x -0.5)))
-  our ans:    (* (sqrt (- x 1)) (sqrt x))
-  herbie improvement: 0.551 -> 0.541125
-  our improvement:    0.551 -> 0.551
+  herbie: (* (sqrt (- x 1.0)) (/ 1.0 (pow x -0.5)))
+  our alt1: (* (sqrt (- x 1)) (sqrt x))
+  our alt2: (- x (/ 1 2))
+  our alt3: (* x (+ 1 (/ (/ -1 2) x)))
+  input score -> herbie score: 0.5980731203125902 -> 0.5893231203125902
+  input score -> alt1 score:   0.5980731203125902 -> 0.5980731203125902
+  input score -> alt2 score:   0.5980731203125902 -> 0.796340063530331
+  input score -> alt3 score:   0.5980731203125902 -> 0.7959650635303311
 
 [bench_sqrtexp]
   input:  (sqrt (/ (- (exp (* 2 x)) 1) (- (exp x) 1)))
-  herbie ans: (sqrt (/ (expm1 (+ x x)) (expm1 x)))
-  our ans:    (sqrt (/ (expm1 (* 2 x)) (expm1 x)))
-  herbie improvement: 41.10272730767562 -> 0.47175
-  our improvement:    41.10272730767562 -> 0.47175
+  herbie: (sqrt (- (exp x) -1.0))
+  our alt1: (sqrt (/ (expm1 (* 2 x)) (expm1 x)))
+  our alt2: (/ (sqrt (abs (expm1 (* 2 x)))) (sqrt (abs (expm1 x))))
+  our alt3: (/ 6369051672525773 4503599627370496)
+  input score -> herbie score: 41.64509524553388 -> 0.03825
+  input score -> alt1 score:   41.64509524553388 -> 0.4395
+  input score -> alt2 score:   41.64509524553388 -> 0.7272924812503606
+  input score -> alt3 score:   41.64509524553388 -> 17.754039102511147
 
 [bench_tan_example]
   input:  (- (tan (+ (/ 3022314549036573 302231454903657293676544) x)) (tan x))
-  herbie ans: (/ 1.0 (/ (fma (cos x) (* (cos x) (cos 1e-8)) (* (cos x) (* (sin -1e-8) (sin x)))) (sin 1e-8)))
-  our ans:    (/ (sin (/ 3022314549036573 302231454903657293676544)) (* (cos (+ (neg (/ 3022314549036573 302231454903657293676544)) (neg x))) (cos x)))
-  herbie improvement: 31.557689251472752 -> 0.27693985157737383
-  our improvement:    31.557689251472752 -> 13.084996629514363
+  herbie: (/ 1e-8 (fma (cos x) (* (sin -1e-8) (sin x)) (* (cos x) (* (cos -1e-8) (cos x)))))
+  our alt1: (/ (sin (/ 3022314549036573 302231454903657293676544)) (* (cos x) (cos (+ (/ 3022314549036573 302231454903657293676544) x))))
+  our alt2: (/ (sin (/ 3022314549036573 302231454903657293676544)) (* (/ 1 2) (+ (cos (fma -2 x (/ -3022314549036573 302231454903657293676544))) (cos (/ -3022314549036573 302231454903657293676544)))))
+  our alt3: (/ (* 2 (sin (/ 3022314549036573 302231454903657293676544))) (+ (cos (/ 3022314549036573 302231454903657293676544)) (cos (+ (neg (/ 3022314549036573 302231454903657293676544)) (neg (* 2 x))))))
+  input score -> herbie score: 30.737704595692364 -> 0.2879214312705529
+  input score -> alt1 score:   30.737704595692364 -> 12.782513335543113
+  input score -> alt2 score:   30.737704595692364 -> 12.8010692801533
+  input score -> alt3 score:   30.737704595692364 -> 12.8010692801533
 
 [bench_tanhf]
   input:  (/ (- 1 (cos x)) (sin x))
-  herbie ans: (tan (* 0.5 x))
-  our ans:    (tan (* (/ 1 2) x))
-  herbie improvement: 30.49695787228045 -> 0.018625
-  our improvement:    30.49695787228045 -> 0.018625
+  herbie: (tan (* 0.5 x))
+  our alt1: (tan (* (/ 1 2) x))
+  our alt2: (/ (sin (* (/ 1 2) x)) (cos (/ x -2)))
+  our alt3: (/ (sin x) (+ 1 (cos x)))
+  input score -> herbie score: 30.122014572630388 -> 0.018625
+  input score -> alt1 score:   30.122014572630388 -> 0.018625
+  input score -> alt2 score:   30.122014572630388 -> 0.16157312031259016
+  input score -> alt3 score:   30.122014572630388 -> 0.43376517736563147
 
 [bench_tea_20]
   input:  (* (/ -5734161139222659 4503599627370496) (log (/ (+ (exp (* (/ 884279719003555 1125899906842624) f)) (exp (* (/ -884279719003555 1125899906842624) f))) (- (exp (* (/ 884279719003555 1125899906842624) f)) (exp (* (/ -884279719003555 1125899906842624) f))))))
-  herbie ans: (* 1.2732395447351628 (log (tanh (* 0.7853981633974483 f))))
-  our ans:    (* (/ 5734161139222659 4503599627370496) (log (/ (abs (sinh (* (/ -884279719003555 1125899906842624) f))) (cosh (* (/ -884279719003555 1125899906842624) f)))))
-  herbie improvement: 61.44377344378901 -> 0.5693447973219736
-  our improvement:    61.44377344378901 -> 1.8783214690106265
+  herbie: (* 1.2732395447351628 (log (tanh (* 0.7853981633974483 f))))
+  our alt1: (/ (- (* 25824365969885545907785631268864 (log (abs (sinh (* (/ 884279719003555 1125899906842624) f))))) (* 25824365969885545907785631268864 (log (abs (cosh (* (/ -884279719003555 1125899906842624) f)))))) 20282409603651670423947251286016)
+  our alt2: (- (* (/ 5734161139222659 4503599627370496) (log (abs (sinh (* (/ 884279719003555 1125899906842624) f))))) (* (/ 5734161139222659 4503599627370496) (log (abs (cosh (* (/ 884279719003555 1125899906842624) f))))))
+  our alt3: (* (/ -5734161139222659 4503599627370496) (- (log (abs (cosh (* (/ 884279719003555 1125899906842624) f)))) (log (abs (sinh (* (/ 884279719003555 1125899906842624) f))))))
+  input score -> herbie score: 61.82167155565576 -> 0.6266400091604803
+  input score -> alt1 score:   61.82167155565576 -> 1.8898252592545757
+  input score -> alt2 score:   61.82167155565576 -> 1.8935429067447491
+  input score -> alt3 score:   61.82167155565576 -> 1.8898771389419855
 
 [bench_trig_B]
   input:  (/ (- 1 (^ (tan x) 2)) (+ 1 (^ (tan x) 2)))
-  herbie ans: (cos (+ x x))
-  our ans:    (/ (fma (tan x) (tan x) -1) (+ (neg 1) (neg (^ (tan x) 2))))
-  herbie improvement: 0.3263206647764713 -> 0.062375
-  our improvement:    0.3263206647764713 -> 0.31042168816595495
+  herbie: (/ (/ (cos (+ x x)) (+ 0.5 0.5)) (+ 1.0 (pow (tan PI) 2.0)))
+  our alt1: (cos (* 2 x))
+  our alt2: (/ (- 1 (^ (tan x) 2)) (+ 1 (^ (tan x) 2)))
+  our alt3: (/ (+ 1 (+ (^ (tan x) 2) (neg (* (^ (tan x) 2) (+ 1 (^ (tan x) 2)))))) (^ (+ 1 (^ (tan x) 2)) 2))
+  input score -> herbie score: 0.3200671724896263 -> 0.06525
+  input score -> alt1 score:   0.3200671724896263 -> 0.06525
+  input score -> alt2 score:   0.3200671724896263 -> 0.3200671724896263
+  input score -> alt3 score:   0.3200671724896263 -> 0.4078435598590514
 
 [bench_x_over_xsq_plus_1]
   input:  (/ x (+ 1 (^ x 2)))
-  herbie ans: (* (copysign 1.0 x) (if (<= (fabs x) 114667.02962904707) (* (fabs x) (/ 1.0 (fma (fabs x) (fabs x) 1.0))) (/ 1.0 (fabs x))))
-  our ans:    (/ x (+ 1 (^ x 2)))
-  herbie improvement: 15.042269746055087 -> N/A(regime)
-  our improvement:    15.042269746055087 -> 15.042269746055087
+  herbie: (* (copysign 1.0 x) (if (<= (fabs x) 93.91789423061682) (/ (fabs x) (fma (fabs x) (fabs x) 1.0)) (/ 1.0 (fabs x))))
+  our alt1: (/ x (+ 1 (^ x 2)))
+  our alt2: x
+  our alt3: (/ 1 x)
+  input score -> herbie score: 14.51985637758555 -> N/A(regime)
+  input score -> alt1 score:   14.51985637758555 -> 14.51985637758555
+  input score -> alt2 score:   14.51985637758555 -> 30.998202064939846
+  input score -> alt3 score:   14.51985637758555 -> 31.185432727004148
 
 [bench_x_poly]
   input:  (^ x 4)
-  herbie ans: (pow x 4.0)
-  our ans:    (^ x 4)
-  herbie improvement: 0.008375 -> 0.008375
-  our improvement:    0.008375 -> 0.008375
+  herbie: (pow x 4.0)
+  our alt1: (^ x 4)
+  our alt2: 0
+  our alt3: N/A(no alt3)
+  input score -> herbie score: 0.000125 -> 0.000125
+  input score -> alt1 score:   0.000125 -> 0.000125
+  input score -> alt2 score:   0.000125 -> 39.985301621283085
+  input score -> alt3 score:   0.000125 -> N/A(no alt3)
 
 [bench_xlohi]
   input:  x
-  herbie ans: x
-  our ans:    x
-  herbie improvement: 0.032 -> 0.032
-  our improvement:    0.032 -> 0.032
+  herbie: x
+  our alt1: x
+  our alt2: N/A(no alt2)
+  our alt3: N/A(no alt3)
+  input score -> herbie score: 0.008 -> 0.008
+  input score -> alt1 score:   0.008 -> 0.008
+  input score -> alt2 score:   0.008 -> N/A(no alt2)
+  input score -> alt3 score:   0.008 -> N/A(no alt3)
 
