@@ -50,13 +50,57 @@ function preprocess_pcontext(context::SampleContext, held::Vector{Tuple{Symbol,A
 end
 
 """
-    fast_eval(expr, vars) -> Function
+    fix_odd_root_pow(expr::Num) -> Num
 
-Compiles expr into Float64 function - Herbie's fast evaluator
-but via build_function . nanmath defaults to true.
+"""
+function fix_odd_root_pow(expr::Num)::Num
+    subs = Dict{Any, Any}()
+    function collect!(u)
+        SymbolicUtils.iscall(u) || return
+        op = SymbolicUtils.operation(u)
+        args = SymbolicUtils.arguments(u)
+        foreach(a -> collect!(Symbolics.unwrap(a)), args)
+
+        if op == (^) && length(args) == 2
+            base, exp_arg = args
+            exp_u = Symbolics.unwrap(exp_arg)
+            exp_val = SymbolicUtils.isconst(exp_u) ? SymbolicUtils.unwrap_const(exp_u) :
+                      (exp_u isa Number ? exp_u : nothing)
+            if exp_val isa Rational && !isinteger(exp_val) && isodd(denominator(exp_val))
+                p = numerator(exp_val)
+                exp_float = Float64(exp_val)  # avoid huge-rational exponent -> stack overflow in ^
+                base_num = Num(base)
+                abs_pow = abs(base_num)^exp_float
+                replacement = isodd(p) ? sign(base_num) * abs_pow : abs_pow
+                subs[u] = Symbolics.unwrap(replacement)
+            end
+        end
+    end
+    collect!(Symbolics.unwrap(expr))
+    isempty(subs) && return expr
+    return Num(Symbolics.substitute(expr, subs))
+end
+
+
+"""
+    float_to_bigints(e) -> Any
+
+"""
+function float_to_bigints(e)
+    e isa Expr && return Expr(e.head, map(float_to_bigints, e.args)...)
+    (e isa BigInt || e isa BigFloat || e isa Rational{BigInt}) && return Float64(e)
+    return e
+end
+
+"""
+    fast_eval(expr, vars) -> Function
+    
 """
 function fast_eval(expr, vars)
-    return Symbolics.build_function(expr, vars...; expression=Val{false})
+    fixed = fix_odd_root_pow(Num(expr))
+    code = Symbolics.build_function(fixed, vars...; expression=Val{true})
+    f = eval(float_to_bigints(code))
+    return (args...) -> Base.invokelatest(f, args...)
 end
 
 """
