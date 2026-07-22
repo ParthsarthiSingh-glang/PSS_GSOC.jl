@@ -68,6 +68,8 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
                 ("erfc", 1) => Expr::Erfc(a()),
                 ("abs", 1)  => Expr::Fabs(a()),
                 ("exp", 1)  => Expr::Exp(a()),
+                ("log1p", 1) => Expr::Log1p(a()),
+                ("expm1", 1) => Expr::Expm1(a()),
                 ("copysign", 2) => Expr::Copysign(a(), b()),
                 ("fmin", 2) => Expr::Fmin(a(), b()),
                 ("fmax", 2) => Expr::Fmax(a(), b()),

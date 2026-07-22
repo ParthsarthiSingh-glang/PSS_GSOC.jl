@@ -9,7 +9,7 @@ mod domain_search;
 use egg::*;
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::Zero;
+use num_traits::{Pow, Signed, Zero};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -79,6 +79,7 @@ impl Analysis<MathLang> for ConstantFold {
 
     fn make(egraph: &mut EGraph<MathLang, Self>, enode: &MathLang, _id: Id) -> Self::Data {
         let x = |i: &Id| egraph[*i].data.as_ref().map(|d| d.0.clone());
+        let is_zero = |i: &Id| egraph[*i].data.as_ref().map_or(false, |d| d.0.is_zero());
         let value = match enode {
             MathLang::Num(c)      => c.clone(),
             MathLang::Neg(a)      => -x(a)?,
@@ -90,6 +91,50 @@ impl Analysis<MathLang> for ConstantFold {
                 if denom.is_zero() { return None; }
                 x(a)? / denom
             }
+            MathLang::Pow([a, b]) => {
+                if is_zero(a) {
+                    if x(b)?.is_positive() {
+                        Constant::new(BigInt::from(0), BigInt::from(1))
+                    } else {
+                        return None;
+                    }
+                } else if is_zero(b) {
+                    Constant::new(BigInt::from(1), BigInt::from(1))
+                } else if x(b)?.is_integer() && x(b)?.abs() <= egraph.analysis.max_abs_exponent {
+                    Pow::pow(x(a)?, x(b)?.to_integer())
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Sqrt(a) => {
+                let a = x(a)?;
+                if *a.numer() > BigInt::from(0) && *a.denom() > BigInt::from(0) {
+                    let s1 = a.numer().sqrt();
+                    let s2 = a.denom().sqrt();
+                    let is_perfect = &(&s1 * &s1) == a.numer() && &(&s2 * &s2) == a.denom();
+                    if is_perfect { Constant::new(s1, s2) } else { return None; }
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Log(a) => {
+                if x(a)? == Constant::new(BigInt::from(1), BigInt::from(1)) {
+                    Constant::new(BigInt::from(0), BigInt::from(1))
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Cbrt(a) => {
+                if x(a)? == Constant::new(BigInt::from(1), BigInt::from(1)) {
+                    Constant::new(BigInt::from(1), BigInt::from(1))
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Fabs(a) => x(a)?.abs(),
+            MathLang::Floor(a) => x(a)?.floor(),
+            MathLang::Ceil(a) => x(a)?.ceil(),
+            MathLang::Round(a) => x(a)?.round(),
             _ => return None,
         };
 
@@ -162,7 +207,7 @@ fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 fn rep_removal_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     vec![
         rewrite!("remove-rep"; "(rep ?a ?b ?c)" => "(/ ?a ?b)"),
-        rewrite!("remove-rep-pow"; "(rep-pow ?a ?b ?c)" => "(pow ?a ?b)"),
+        rewrite!("remove-rep-pow"; "(rep-pow ?a ?b ?c)" => "(^ ?a ?b)"),
         rewrite!("remove-rep-log"; "(rep-log ?a ?b)" => "(log ?a)"),
     ]
 }
@@ -176,16 +221,48 @@ fn rep_removal_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 //     }
 // }
 
+fn herbie_op_cost(op: &str) -> usize {
+    match op {
+        "+" => 200, "-" => 200, "*" => 250, "/" => 350, "^" => 2000,
+        "neg" => 125, "sqrt" => 250, "fabs" => 125, "abs" => 125,
+        "ceil" => 250, "floor" => 300, "round" => 850, "log" => 750, "cbrt" => 2000,
+        "sin" => 4200, "cos" => 4200, "tan" => 4650,
+        "asin" => 500, "acos" => 500, "atan" => 1100,
+        "sinh" => 1750, "cosh" => 1650, "tanh" => 1000,
+        "asinh" => 1125, "acosh" => 850, "atanh" => 450,
+        "erf" => 1125, "erfc" => 900,
+        "exp" => 1375, "log1p" => 1300, "expm1" => 900,
+        "copysign" => 200, "fmin" => 250, "fmax" => 250,
+        "atan2" => 2000, "hypot" => 1700, "remainder" => 1000,
+        "fma" => 375,
+        _ => 125, 
+    }
+}
+
 struct AstWithRep;
 impl CostFunction<MathLang> for AstWithRep {
     type Cost = usize;
     fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> Self::Cost
     where C: FnMut(Id) -> Self::Cost {
-        match enode {
-            MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => usize::MAX, // rep nodes
-            _ => enode.fold(1, |sum, id| usize::saturating_add(sum, costs(id))),// Astsize()
-            // please look into the costs of sqrt,sinh,cosh,etc.
-        }
+        let own_cost = match enode {
+            MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => return usize::MAX, // rep nodes
+            MathLang::Add(_) => herbie_op_cost("+"),
+            MathLang::Sub(_) => herbie_op_cost("-"),
+            MathLang::Mul(_) => herbie_op_cost("*"),
+            MathLang::Div(_) => herbie_op_cost("/"),
+            MathLang::Pow(_) => herbie_op_cost("^"),
+            MathLang::Neg(_) => herbie_op_cost("neg"),
+            MathLang::Sqrt(_) => herbie_op_cost("sqrt"),
+            MathLang::Fabs(_) => herbie_op_cost("fabs"),
+            MathLang::Ceil(_) => herbie_op_cost("ceil"),
+            MathLang::Floor(_) => herbie_op_cost("floor"),
+            MathLang::Round(_) => herbie_op_cost("round"),
+            MathLang::Log(_) => herbie_op_cost("log"),
+            MathLang::Cbrt(_) => herbie_op_cost("cbrt"),
+            MathLang::Num(_) | MathLang::Symbol(_) => 125, 
+            MathLang::Other(sym, _) => herbie_op_cost(sym.as_str()),
+        };
+        enode.fold(own_cost, |sum, id| usize::saturating_add(sum, costs(id)))
     }
 }
 
