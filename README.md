@@ -2,64 +2,91 @@
 
 Julia bindings to [egg](https://egraphs-good.github.io/egg/) for numerical accuracy optimization of symbolic expressions — SciML Summer Fellowship 2026. The end goal: a user writes `optimize_accuracy(expr)` on a Symbolics.jl expression and gets back a numerically better equivalent.
 
+---
 ## Project Structure
-
 ```text
 EggFFI.jl/
-  src/EggFFI.jl
-  src/converter.jl
-  src/rules.jl
-  test/runtests.jl
-  test/egraphtests.jl
-  Project.toml
-
+├── src/
+│   ├── EggFFI.jl
+│   ├── converter.jl
+│   ├── sampling.jl
+│   ├── taylor.jl
+│   ├── alttable.jl
+│   ├── mainloop.jl
+│   ├── pareto.jl
+│   └── rules.jl
+│
+├── test/
+│   ├── runtests.jl
+│   ├── egraphtests.jl
+│   ├── fpcore_tests.jl
+│   ├── fpcore_bench.jl
+│   └── compare_herbie.jl
+│
 egg-julia-ffi/
-  src/lib.rs
-  src/herbie_rules.rs
-  src/my_rules.rs
-  Cargo.toml
-
-parse_rules.py
+├── src/
+│   ├── lib.rs
+│   ├── herbie_rules.rs
+│   ├── domain_search.rs
+│   ├── discretization.rs
+│   ├── to_rival.rs
+│   └── my_rules.rs
+└── Cargo.toml
 ```
+---
 
 ## Pipeline
-
 ```text
-Symbolics expr
-    ↓  to_sexpr          — reads AddMul coeff/dict (SymbolicUtils/src/types.jl)
-s-expression string
-    ↓  egraph_create     — Rust: string → RecExpr → EGraph
-    ↓  egraph_saturate!  — Rust: until NodeLimit/Saturated
-    ↓  egraph_extract    — Rust: AstWithRep cost function → best expression
-    ↓  egraph_destroy    — Rust: free heap
-    ↓  from_sexpr        — string → Symbolics.Num via maketerm (TermInterface.jl)
-Symbolics expr (optimized)
+run_improve_with_report(expr, [x])
+    │
+    ├─► Preprocessing & Sampling  (sampling.jl)
+    │     • Generates SampleContext & preprocesses initial expression
+    │     • Initializes AltTable with initial candidate
+    │
+    └─► Main Iterative Loop (mainloop.jl — up to NUM_ITERATIONS)
+          │
+          ├─► Candidate Generation:
+          │     1. Shared E-Graph Saturation (rewrite_variations_batch):
+          │        Inserts ALL pending alternatives into ONE SHARED E-Graph ,
+          │        saturates once  and extracts variations per root.
+          │     2. Symbolic Taylor Series (taylor.jl):
+          │        Generates polynomial expansions around 0, ∞, -∞.
+          │
+          ├─► Scoring & Evaluation (sampling.jl):
+          │        Evaluates ULP error for each candidate over SampleContext.
+          │
+          ├─► Candidate Selection & Pruning (alttable.jl / pareto.jl):
+          │        Applies Greedy Set-Cover and Pareto pruning to select active alternatives.
+          │
+          └─► Winner Extraction (extract!):
+                   Selects the best expression balancing ULP error score and AST size cost.
 ```
+---
 
 ## Quick Start
-
+### 1. Build the Rust Backend
+Compile the `egg-julia-ffi` Rust library:
+```bash
+cd egg-julia-ffi
+cargo build --release
+cd ..
+```
+### 2. Run in Julia
 ```julia
-# build Rust crate first: cd egg-julia-ffi && cargo build --release
-
-using Pkg; Pkg.activate(".")
-include("src/EggFFI.jl")
+using Pkg
+Pkg.activate("EggFFI.jl")
+include("EggFFI.jl/src/EggFFI.jl")
+using .EggFFI
 using Symbolics
-
 @variables x
-EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
+expr1 = sqrt(x + 1) - sqrt(x)
+report1 = run_improve_with_report(expr1, [x])
+println("Original:  ", expr1)
+println("Winner:    ", report1.winner)
+println("ULP Score: ", start_score(report1), " -> ", end_score(report1))
+
 ```
-
-Variables are extracted automatically via `Symbolics.get_variables`. For explicit control, pass a `Dict{String, Num}` directly:
-
-```julia
-EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x), Dict("x" => x))
-```
-
-## Rewrite Rules
-
-`herbie_rules.rs` contains ~430 rules ported from [Herbie's rules.rkt](https://github.com/herbie-fp/herbie/blob/main/src/core/rules.rkt). `parse_rules.py` auto-generates this file from `rules.rkt` — it prefixes pattern variables with `?`, maps operator names to `MathLang`, and has a `SKIP` set for rules that are unsound or cause excessive node blowup.
-
-Sqrt rationalization rules (`flip--`, `flip-+`) use a synthetic `rep` node to avoid infinite rewriting loops. After saturation, a post-pass converts `(rep a b c) → (/ a b)` to materialize the rationalized form into the e-graph. This mirrors Herbie's `sound-/` mechanism.
+---
 
 ## E-Graph Accessories
 
@@ -91,4 +118,4 @@ Introspection functions available after `egraph_saturate!`:
 
 ## AI Assistance
 
-Developed with assistance from Claude (Anthropic) and Gemini (Google DeepMind).
+Developed with assistance from Claude (Anthropic).
