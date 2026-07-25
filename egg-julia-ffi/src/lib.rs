@@ -336,6 +336,14 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
         rule.apply(&mut egraph, &matches);
         egraph.rebuild();
     }
+    //pruning 
+    if egraph.analysis.prune {
+        egraph.classes_mut().for_each(|eclass| {
+            if eclass.nodes.iter().any(|n| n.is_leaf()) {
+                eclass.nodes.retain(|n| n.is_leaf());
+            }
+        });
+    }
     eg.stop_reason = stop;
     eg.root        = egraph.find(root);
     eg.egraph      = egraph;
@@ -491,27 +499,49 @@ pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c
     CString::new(expr.to_string()).unwrap().into_raw()
 }
 
+fn guarded_proof_string<F: FnOnce() -> String + std::panic::UnwindSafe>(f: F) -> String {
+    match std::panic::catch_unwind(f) {
+        Ok(s) => s,
+        Err(payload) => {
+            let msg = payload
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            format!("PROOF_ERROR: {}", msg)
+        }
+    }
+}
+
 // herbie/egg-herbie/src/lib.rs egraph_get_proof
 #[no_mangle]
 pub extern "C" fn egraph_get_proof(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char, goal_ptr: *const c_char) -> *mut c_char {
-    let eg = unsafe { &mut *ptr };
-    let expr: RecExpr<MathLang> = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().parse().unwrap();
-    let goal: RecExpr<MathLang> = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().parse().unwrap();
-    let string = eg.egraph
-        .explain_equivalence(&expr, &goal)
-        .get_string_with_let()
-        .replace('\n', " ");
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().to_string();
+    let goal_str = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().to_string();
+    let string = guarded_proof_string(std::panic::AssertUnwindSafe(|| {
+        let eg = unsafe { &mut *ptr };
+        let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+        let goal: RecExpr<MathLang> = goal_str.parse().unwrap();
+        eg.egraph
+            .explain_equivalence(&expr, &goal)
+            .get_string_with_let()
+            .replace('\n', " ")
+    }));
     CString::new(string).unwrap().into_raw()
 }
 
 // flat explanation (egg::Explanation::get_flat_strings)
 #[no_mangle]
 pub extern "C" fn egraph_get_proof_flat(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char, goal_ptr: *const c_char) -> *mut c_char {
-    let eg = unsafe { &mut *ptr };
-    let expr: RecExpr<MathLang> = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().parse().unwrap();
-    let goal: RecExpr<MathLang> = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().parse().unwrap();
-    let mut explanation = eg.egraph.explain_equivalence(&expr, &goal);
-    let string = explanation.get_flat_strings().join("\n");
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().to_string();
+    let goal_str = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().to_string();
+    let string = guarded_proof_string(std::panic::AssertUnwindSafe(|| {
+        let eg = unsafe { &mut *ptr };
+        let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+        let goal: RecExpr<MathLang> = goal_str.parse().unwrap();
+        let mut explanation = eg.egraph.explain_equivalence(&expr, &goal);
+        explanation.get_flat_strings().join("\n")
+    }));
     CString::new(string).unwrap().into_raw()
 }
 
@@ -592,7 +622,7 @@ pub extern "C" fn rival_find_domain(expr_ptr: *const c_char) -> *mut c_char {
         rug::Float::with_val(53, f64::INFINITY),
     );
 
-    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 128);
     confirmed_true.extend(leftover_ambiguous);
 
     let mut result = String::new();
@@ -656,7 +686,7 @@ pub extern "C" fn rival_sample_points(expr_ptr: *const c_char, n: usize) -> *mut
         rug::Float::with_val(53, f64::INFINITY),
     );
 
-    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 128);
     confirmed_true.extend(leftover_ambiguous);
 
     let mut result = String::new();

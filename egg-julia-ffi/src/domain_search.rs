@@ -3,7 +3,7 @@
 // [0,0] = confirmed valid, [1,1] = confirmed invalid, [0,1] = ambiguous
 
 
-use rival::{Ival, Machine, Discretization};
+use rival::{Ival, Machine, Discretization, Hint};
 use crate::discretization::{to_ordinal, from_ordinal};
 
 pub fn find_valid_domain<D: Discretization>(
@@ -12,18 +12,19 @@ pub fn find_valid_domain<D: Discretization>(
     depth: usize,
 ) -> (Vec<Ival>, Vec<Ival>) {
     let mut true_regions: Vec<Ival> = Vec::new();
-    let mut other: Vec<Ival> = vec![start];
+    let mut other: Vec<(Ival, Option<Vec<Hint>>)> = vec![(start, None)];
     let mut n = 0usize;
 
     loop {
         let explosion_cap = 1usize.checked_shl(depth as u32).unwrap_or(usize::MAX);
         if n >= depth || other.is_empty() || other.len() >= explosion_cap {
-            return (true_regions, other);
+            return (true_regions, other.into_iter().map(|(region, _)| region).collect());
         }
 
-        let mut next_other: Vec<Ival> = Vec::new();
-        for region in other {
-            let (status, _hint, converged) = machine.analyze_with_hints(&[region.clone()], None);
+        let mut next_other: Vec<(Ival, Option<Vec<Hint>>)> = Vec::new();
+        for (region, hint) in other {
+            let (status, next_hint, converged) =
+                machine.analyze_with_hints(&[region.clone()], hint.as_deref());
             let lo_valid = status.lo().is_zero();
             let hi_valid = status.hi().is_zero();
             let lo_invalid = *status.lo() == 1u32;
@@ -33,7 +34,7 @@ pub fn find_valid_domain<D: Discretization>(
             if lo_valid && hi_valid && converged {
                 true_regions.push(region);
             } else if lo_invalid && hi_invalid {
-                // 
+                //
             } else {
                 // (Herbie's real two-midpoints, syntax/float.rkt),
                 // Not (lo+hi)/2 -  (NaN) when lo/hi include infinity
@@ -44,14 +45,14 @@ pub fn find_valid_domain<D: Discretization>(
                 let mid_ord = ((lo_ord + hi_ord) / 2) as i64;
                 let mid_f64 = from_ordinal(mid_ord);
 
-                
+
                 if mid_f64 <= lo_f64 || mid_f64 >= hi_f64 {
-                    next_other.push(region);
+                    next_other.push((region, Some(next_hint)));
                 } else {
                     let mid = rug::Float::with_val(53, mid_f64);
                     let (left, right) = region.split_at(&mid);
-                    next_other.push(left);
-                    next_other.push(right);
+                    next_other.push((left, Some(next_hint.clone())));
+                    next_other.push((right, Some(next_hint)));
                 }
             }
         }
