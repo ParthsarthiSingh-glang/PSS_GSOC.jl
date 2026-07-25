@@ -504,6 +504,17 @@ pub extern "C" fn egraph_get_proof(ptr: *mut EGraphWithRoot, expr_ptr: *const c_
     CString::new(string).unwrap().into_raw()
 }
 
+// flat explanation (egg::Explanation::get_flat_strings)
+#[no_mangle]
+pub extern "C" fn egraph_get_proof_flat(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char, goal_ptr: *const c_char) -> *mut c_char {
+    let eg = unsafe { &mut *ptr };
+    let expr: RecExpr<MathLang> = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().parse().unwrap();
+    let goal: RecExpr<MathLang> = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().parse().unwrap();
+    let mut explanation = eg.egraph.explain_equivalence(&expr, &goal);
+    let string = explanation.get_flat_strings().join("\n");
+    CString::new(string).unwrap().into_raw()
+}
+
 // returns all enodes inside a given eclass as s-expr's
 // egg stores enodes in egraph[id].nodes as a Vec<MathLang>
 #[no_mangle]

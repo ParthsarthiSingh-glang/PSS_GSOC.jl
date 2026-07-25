@@ -53,8 +53,9 @@ Inserts EVERY given expr as a separate root into ONE SHARED egraph
 saturates ONCE, then extracts variations per-root afterward.
 
 """
-function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; warn::Bool = true)::Vector{Vector{Num}}
-    isempty(exprs) && return Vector{Num}[]
+function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; warn::Bool = true,
+                                   keep_alive::Bool = false)
+    isempty(exprs) && return keep_alive ? (Vector{Num}[], nothing) : Vector{Num}[]
 
     seed_idx = findfirst(exprs) do e
         try
@@ -66,7 +67,8 @@ function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; w
     end
     if seed_idx === nothing
         warn && @warn "no expr could be converted via to_sexpr, skipping whole batch" exprs=exprs
-        return [Num[] for _ in exprs]
+        empty_result = [Num[] for _ in exprs]
+        return keep_alive ? (empty_result, nothing) : empty_result
     end
 
     ptr = egraph_create(to_sexpr(exprs[seed_idx]))
@@ -108,30 +110,76 @@ function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; w
         push!(results, variations)
     end
 
+    if keep_alive
+        return results, ptr
+    end
     egraph_destroy(ptr)
     return results
 end
 
 """
-    run_iteration!(table::AltTable, vars) -> AltTable
+    DerivationLog
 
 """
-function run_iteration!(table::AltTable, vars)::AltTable
+mutable struct DerivationLog
+    parent::Dict{String, String}
+    kind::Dict{String, Symbol}          # :rewrite or :taylor
+    egraph_of::Dict{String, Ptr{Cvoid}} # only set for :rewrite
+    live_egraphs::Vector{Ptr{Cvoid}}
+    root::String  
+end
+DerivationLog(root::String) = DerivationLog(Dict{String, String}(), Dict{String, Symbol}(),
+    Dict{String, Ptr{Cvoid}}(), Ptr{Cvoid}[], root)
+
+"""
+    run_iteration!(table::AltTable, vars; dlog=nothing) -> AltTable
+
+"""
+function run_iteration!(table::AltTable, vars; dlog::Union{Nothing, DerivationLog} = nothing)::AltTable
     pending_keys = atab_not_done_alts(table)
     @info "run_iteration!" n_pending=length(pending_keys)
     atab_set_picked!(table, pending_keys)
     pending_exprs = [table.expr_of[k] for k in pending_keys]
 
     var_dict = Dict{String, Num}(string(v) => Num(v) for v in vars)
-    variations_per_alt = rewrite_variations_batch(pending_exprs, var_dict)
     candidates = Num[]
-    for vs in variations_per_alt
-        append!(candidates, vs)
+
+    if dlog === nothing
+        variations_per_alt = rewrite_variations_batch(pending_exprs, var_dict)
+        for vs in variations_per_alt
+            append!(candidates, vs)
+        end
+    else
+        variations_per_alt, ptr = rewrite_variations_batch(pending_exprs, var_dict; keep_alive = true)
+        ptr !== nothing && push!(dlog.live_egraphs, ptr)
+        for (parent_expr, vs) in zip(pending_exprs, variations_per_alt)
+            parent_key = to_sexpr(parent_expr)
+            for v in vs
+                child_key = to_sexpr(v)
+                if child_key != dlog.root && !haskey(dlog.parent, child_key)
+                    dlog.parent[child_key] = parent_key
+                    dlog.kind[child_key] = :rewrite
+                    dlog.egraph_of[child_key] = ptr
+                end
+            end
+            append!(candidates, vs)
+        end
     end
 
     for expr in pending_exprs
         try
-            append!(candidates, taylor_variations(expr, Num[Num(v) for v in vars]))
+            taylor_candidates_expr = taylor_variations(expr, Num[Num(v) for v in vars])
+            if dlog !== nothing
+                parent_key = to_sexpr(expr)
+                for c in taylor_candidates_expr
+                    child_key = to_sexpr(c)
+                    if child_key != dlog.root && !haskey(dlog.parent, child_key)
+                        dlog.parent[child_key] = parent_key
+                        dlog.kind[child_key] = :taylor
+                    end
+                end
+            end
+            append!(candidates, taylor_candidates_expr)
         catch e
             @warn "taylor_variations failed" expr=expr exception=e
         end
@@ -177,15 +225,15 @@ function extract!(table::AltTable, vars)::Num
 end
 
 """
-    _run_loop!(table::AltTable, vars) -> AltTable
+    run_loop!(table::AltTable, vars; dlog=nothing) -> AltTable
 """
-function _run_loop!(table::AltTable, vars)::AltTable
+function run_loop!(table::AltTable, vars; dlog::Union{Nothing, DerivationLog} = nothing)::AltTable
     for i in 1:NUM_ITERATIONS
         if atab_completed(table)
             @info "run_improve!: converged" iteration=i
             break
         end
-        run_iteration!(table, vars)
+        run_iteration!(table, vars; dlog)
     end
     return table
 end
@@ -197,14 +245,102 @@ end
 function run_improve!(expr::Num, vars = Symbolics.get_variables(expr); n::Int = 256)::Num
     ctx = sample_context(expr, vars; n = n)
     table = make_alt_table(ctx, expr, vars)
-    _run_loop!(table, vars)
+    run_loop!(table, vars)
     return extract!(table, vars)
 end
 
 """
-    ImprovementReport
+    DerivationStep
 
-alternatives is the top-k sorted candidate list 
+"""
+struct DerivationStep
+    kind::Symbol   # :rewrite or :taylor
+    from::Num
+    to::Num
+    proof::Union{Nothing, Vector{String}}
+end
+
+"""
+    contains_raw(ptr, sexpr) -> Union{UInt32,Nothing}
+
+Same ccall as egraph_contains
+"""
+function contains_raw(ptr::Ptr{Cvoid}, sexpr::String)::Union{UInt32, Nothing}
+    raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, sexpr)
+    raw == typemax(UInt32) ? nothing : raw
+end
+
+"""
+    is_equivalent(ptr, from_key, to_key) -> Bool
+
+"""
+function is_equivalent(ptr::Ptr{Cvoid}, from_key::String, to_key::String)::Bool
+    from_id = contains_raw(ptr, from_key)
+    to_id = contains_raw(ptr, to_key)
+    (from_id === nothing || to_id === nothing) && return false
+    return egraph_find(ptr, from_id) == egraph_find(ptr, to_id)
+end
+
+"""
+    build_derivation(dlog::DerivationLog, vars, key::String) -> Vector{DerivationStep}
+.
+"""
+function build_derivation(dlog::DerivationLog, vars, key::String)::Vector{DerivationStep}
+    chain_keys = String[key]
+    seen = Set{String}((key,))
+    k = key
+    while haskey(dlog.parent, k)
+        k = dlog.parent[k]
+        k in seen && error("build_derivation: parent cycle detected at $k ")
+        push!(seen, k)
+        push!(chain_keys, k)
+    end
+    reverse!(chain_keys)
+
+    steps = DerivationStep[]
+    for i in 1:length(chain_keys) - 1
+        from_key, to_key = chain_keys[i], chain_keys[i + 1]
+        step_kind = dlog.kind[to_key]
+        proof = if step_kind != :rewrite
+            nothing
+        else
+            ptr = dlog.egraph_of[to_key]
+            if is_equivalent(ptr, from_key, to_key)
+                egraph_get_proof_flat(ptr, from_key, to_key)
+            else
+                ["parent/child were not found equivalent in the " ]
+            end
+        end
+        push!(steps, DerivationStep(step_kind, from_sexpr(from_key, vars), from_sexpr(to_key, vars), proof))
+    end
+    return steps
+end
+
+const _RULE_TAG_RE = r"Rewrite(?:=>|<=)\s+(\S+)"
+
+"""
+    print_derivation(steps::Vector{DerivationStep})
+
+"""
+function print_derivation(steps::Vector{DerivationStep})
+    for (i, s) in enumerate(steps)
+        println("[$i] ", s.kind, ": ", s.from, "  =>  ", s.to)
+        if s.proof !== nothing
+            for (j, line) in enumerate(s.proof)
+                rules = [m.captures[1] for m in eachmatch(_RULE_TAG_RE, line)]
+                tag = isempty(rules) ? "" : "   [" * join(rules, ", ") * "]"
+                println("    ", j, ": ", line, tag)
+            end
+        else
+            println("    (taylor series expansion, no rule-level proof)")
+        end
+        println()
+    end
+end
+
+"""
+    ImprovementReport
+.
 """
 struct ImprovementReport
     winner::Num
@@ -212,6 +348,7 @@ struct ImprovementReport
     start_errors::Vector{Float64}
     end_errors::Vector{Float64}
     test_context::SampleContext
+    derivations::Dict{String, Vector{DerivationStep}}
 end
 
 """
@@ -235,12 +372,18 @@ function run_improve_with_report(expr::Num, vars = Symbolics.get_variables(expr)
     test_ctx = SampleContext(sampled.test.points, sampled.test.values)
 
     table = make_alt_table(train_ctx, expr, vars)
-    _run_loop!(table, vars)
+    dlog = DerivationLog(to_sexpr(expr))
+    run_loop!(table, vars; dlog)
     alternatives = extract_top!(table, vars; k = n_alts)
     winner = first(alternatives)
+
+    var_dict = Dict{String, Num}(string(v) => Num(v) for v in vars)
+    derivations = Dict{String, Vector{DerivationStep}}(
+        to_sexpr(a) => build_derivation(dlog, var_dict, to_sexpr(a)) for a in alternatives)
+    egraph_destroy.(dlog.live_egraphs)
 
     return ImprovementReport(winner, alternatives,
         points_errors(expr, vars, test_ctx),
         points_errors(winner, vars, test_ctx),
-        test_ctx)
+        test_ctx, derivations)
 end

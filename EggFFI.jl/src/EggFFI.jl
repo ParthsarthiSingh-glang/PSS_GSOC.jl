@@ -31,7 +31,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
        egraph_eclass_enodes, egraph_dump_dot, egraph_unsound,
-       egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
+       egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_get_proof_flat, egraph_rule_stats,
        generate_candidates, find_preprocessing, compile_preprocessing, apply_preprocessing,
        preprocess_expr,
        egraph_add_node, egraph_add_root, insert_nodewise!,
@@ -48,6 +48,7 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        NUM_ITERATIONS, rewrite_variations, rewrite_variations_batch, run_iteration!, run_improve!, extract!,
        extract_sorted!, extract_top!,
        ImprovementReport, start_score, end_score, run_improve_with_report,
+       DerivationStep, build_derivation, print_derivation,
        TSeries, make_series, series_ref, series_function, zero_series, taylor_exact,
        first_nonzero_exp, normalize_series,
        taylor_add, taylor_negate, taylor_mult, taylor_invert, taylor_quotient,
@@ -307,6 +308,19 @@ function egraph_get_proof(ptr::Ptr{Cvoid}, expr::String, goal::String)::String
     result = unsafe_string(raw)
     ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
     return result
+end
+
+"""
+    egraph_get_proof_flat(ptr::Ptr{Cvoid}, expr::String, goal::String) -> Vector{String}
+
+Like egraph_get_proof, but returns egg's FLAT explanation 
+"""
+function egraph_get_proof_flat(ptr::Ptr{Cvoid}, expr::String, goal::String)::Vector{String}
+    raw = ccall((:egraph_get_proof_flat, LIBPATH), Ptr{UInt8},
+        (Ptr{Cvoid}, Cstring, Cstring), ptr, expr, goal)
+    result = unsafe_string(raw)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
+    return split(result, "\n")
 end
 
 """
