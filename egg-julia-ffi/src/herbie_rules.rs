@@ -2,7 +2,12 @@
 // Direct ports from herbie/src/core/rules.rkt
 
 use crate::{ConstantFold, MathLang};
-use egg::{rewrite, Rewrite};
+use egg::{rewrite, EGraph, Id, Rewrite, Subst, Var};
+
+fn is_const(var: &str) -> impl Fn(&mut EGraph<MathLang, ConstantFold>, Id, &Subst) -> bool {
+    let var: Var = var.parse().unwrap();
+    move |egraph, _, subst| egraph[subst[var]].data.is_some()
+}
 
 pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     vec![
@@ -70,11 +75,11 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("difference-of-squares"; "(- (* ?a ?a) (* ?b ?b))" => "(* (+ ?a ?b) (- ?a ?b))"),
     rewrite!("difference-of-sqr-1"; "(- (* ?a ?a) 1)" => "(* (+ ?a 1) (- ?a 1))"),
     rewrite!("difference-of-sqr--1"; "(+ (* ?a ?a) -1)" => "(* (+ ?a 1) (- ?a 1))"),
-    rewrite!("pow-sqr"; "(* (pow ?a ?b) (pow ?a ?b))" => "(pow ?a (* 2 ?b))"),
-    rewrite!("sum-square-pow"; "(pow (+ ?a ?b) 2)" => "(+ (+ (pow ?a 2) (* 2 (* ?a ?b))) (pow ?b 2))"),
-    rewrite!("sub-square-pow"; "(pow (- ?a ?b) 2)" => "(+ (- (pow ?a 2) (* 2 (* ?a ?b))) (pow ?b 2))"),
-    rewrite!("sum-square-pow-rev"; "(+ (+ (pow ?a 2) (* 2 (* ?a ?b))) (pow ?b 2))" => "(pow (+ ?a ?b) 2)"),
-    rewrite!("sub-square-pow-rev"; "(+ (- (pow ?a 2) (* 2 (* ?a ?b))) (pow ?b 2))" => "(pow (- ?a ?b) 2)"),
+    rewrite!("pow-sqr"; "(* (^ ?a ?b) (^ ?a ?b))" => "(^ ?a (* 2 ?b))"),
+    rewrite!("sum-square-pow"; "(^ (+ ?a ?b) 2)" => "(+ (+ (^ ?a 2) (* 2 (* ?a ?b))) (^ ?b 2))"),
+    rewrite!("sub-square-pow"; "(^ (- ?a ?b) 2)" => "(+ (- (^ ?a 2) (* 2 (* ?a ?b))) (^ ?b 2))"),
+    rewrite!("sum-square-pow-rev"; "(+ (+ (^ ?a 2) (* 2 (* ?a ?b))) (^ ?b 2))" => "(^ (+ ?a ?b) 2)"),
+    rewrite!("sub-square-pow-rev"; "(+ (- (^ ?a 2) (* 2 (* ?a ?b))) (^ ?b 2))" => "(^ (- ?a ?b) 2)"),
     rewrite!("difference-of-sqr-1-rev"; "(* (+ ?a 1) (- ?a 1))" => "(- (* ?a ?a) 1)"),
     rewrite!("difference-of-sqr--1-rev"; "(* (+ ?a 1) (- ?a 1))" => "(+ (* ?a ?a) -1)"),
 
@@ -83,9 +88,9 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("mult-flip-rev"; "(* ?a (/ 1 ?b))" => "(/ ?a ?b)"),
 
     // polynomials
-    rewrite!("sum-cubes"; "(+ (pow ?a 3) (pow ?b 3))" => "(* (+ (* ?a ?a) (- (* ?b ?b) (* ?a ?b))) (+ ?a ?b))"),
-    rewrite!("difference-cubes"; "(- (pow ?a 3) (pow ?b 3))" => "(* (+ (* ?a ?a) (+ (* ?b ?b) (* ?a ?b))) (- ?a ?b))"),
-    rewrite!("difference-cubes-rev"; "(* (+ (* ?a ?a) (+ (* ?b ?b) (* ?a ?b))) (- ?a ?b))" => "(- (pow ?a 3) (pow ?b 3))"),
+    rewrite!("sum-cubes"; "(+ (^ ?a 3) (^ ?b 3))" => "(* (+ (* ?a ?a) (- (* ?b ?b) (* ?a ?b))) (+ ?a ?b))"),
+    rewrite!("difference-cubes"; "(- (^ ?a 3) (^ ?b 3))" => "(* (+ (* ?a ?a) (+ (* ?b ?b) (* ?a ?b))) (- ?a ?b))"),
+    rewrite!("difference-cubes-rev"; "(* (+ (* ?a ?a) (+ (* ?b ?b) (* ?a ?b))) (- ?a ?b))" => "(- (^ ?a 3) (^ ?b 3))"),
 
     // fractions
     rewrite!("div-sub"; "(/ (- ?a ?b) ?c)" => "(- (/ ?a ?c) (/ ?b ?c))"),
@@ -126,26 +131,26 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("copysign-other-neg"; "(copysign (neg ?a) ?b)" => "(copysign ?a ?b)"),
     rewrite!("copysign-fabs"; "(copysign ?a (fabs ?b))" => "(fabs ?a)"),
     rewrite!("copysign-other-fabs"; "(copysign (fabs ?a) ?b)" => "(copysign ?a ?b)"),
-    rewrite!("sqrt-pow2"; "(pow (sqrt ?x) ?y)" => "(pow ?x (/ ?y 2))"),
+    rewrite!("sqrt-pow2"; "(^ (sqrt ?x) ?y)" => "(^ ?x (/ ?y 2))"),
     rewrite!("sqrt-unprod"; "(* (sqrt ?x) (sqrt ?y))" => "(sqrt (* ?x ?y))"),
     rewrite!("sqrt-prod"; "(sqrt (* ?x ?y))" => "(* (sqrt (fabs ?x)) (sqrt (fabs ?y)))"),
-    rewrite!("rem-cube-cbrt"; "(pow (cbrt ?x) 3)" => "?x"),
-    rewrite!("rem-cbrt-cube"; "(cbrt (pow ?x 3))" => "?x"),
+    rewrite!("rem-cube-cbrt"; "(^ (cbrt ?x) 3)" => "?x"),
+    rewrite!("rem-cbrt-cube"; "(cbrt (^ ?x 3))" => "?x"),
     rewrite!("rem-3cbrt-lft"; "(* (* (cbrt ?x) (cbrt ?x)) (cbrt ?x))" => "?x"),
     rewrite!("rem-3cbrt-rft"; "(* (cbrt ?x) (* (cbrt ?x) (cbrt ?x)))" => "?x"),
-    rewrite!("cube-neg"; "(pow (neg ?x) 3)" => "(neg (pow ?x 3))"),
-    rewrite!("cube-neg-rev"; "(neg (pow ?x 3))" => "(pow (neg ?x) 3)"),
-    rewrite!("cube-prod"; "(pow (* ?x ?y) 3)" => "(* (pow ?x 3) (pow ?y 3))"),
-    rewrite!("cube-div"; "(pow (/ ?x ?y) 3)" => "(/ (pow ?x 3) (pow ?y 3))"),
-    rewrite!("cube-mult"; "(pow ?x 3)" => "(* ?x (* ?x ?x))"),
-    rewrite!("cube-prod-rev"; "(* (pow ?x 3) (pow ?y 3))" => "(pow (* ?x ?y) 3)"),
+    rewrite!("cube-neg"; "(^ (neg ?x) 3)" => "(neg (^ ?x 3))"),
+    rewrite!("cube-neg-rev"; "(neg (^ ?x 3))" => "(^ (neg ?x) 3)"),
+    rewrite!("cube-prod"; "(^ (* ?x ?y) 3)" => "(* (^ ?x 3) (^ ?y 3))"),
+    rewrite!("cube-div"; "(^ (/ ?x ?y) 3)" => "(/ (^ ?x 3) (^ ?y 3))"),
+    rewrite!("cube-mult"; "(^ ?x 3)" => "(* ?x (* ?x ?x))"),
+    rewrite!("cube-prod-rev"; "(* (^ ?x 3) (^ ?y 3))" => "(^ (* ?x ?y) 3)"),
     rewrite!("cbrt-prod"; "(cbrt (* ?x ?y))" => "(* (cbrt ?x) (cbrt ?y))"),
     rewrite!("cbrt-div"; "(cbrt (/ ?x ?y))" => "(/ (cbrt ?x) (cbrt ?y))"),
     rewrite!("cbrt-unprod"; "(* (cbrt ?x) (cbrt ?y))" => "(cbrt (* ?x ?y))"),
     rewrite!("cbrt-undiv"; "(/ (cbrt ?x) (cbrt ?y))" => "(cbrt (/ ?x ?y))"),
-    rewrite!("pow-cbrt"; "(pow (cbrt ?x) ?y)" => "(pow ?x (/ ?y 3))"),
-    rewrite!("cbrt-pow"; "(cbrt (pow ?x ?y))" => "(pow ?x (/ ?y 3))"),
-    rewrite!("cube-unmult"; "(* ?x (* ?x ?x))" => "(pow ?x 3)"),
+    rewrite!("pow-cbrt"; "(^ (cbrt ?x) ?y)" => "(^ ?x (/ ?y 3))"),
+    rewrite!("cbrt-pow"; "(cbrt (^ ?x ?y))" => "(^ ?x (/ ?y 3))"),
+    rewrite!("cube-unmult"; "(* ?x (* ?x ?x))" => "(^ ?x 3)"),
     rewrite!("cbrt-neg"; "(cbrt (neg ?x))" => "(neg (cbrt ?x))"),
     rewrite!("cbrt-neg-rev"; "(neg (cbrt ?x))" => "(cbrt (neg ?x))"),
     rewrite!("cbrt-fabs"; "(cbrt (fabs ?x))" => "(fabs (cbrt ?x))"),
@@ -163,35 +168,35 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("prod-exp"; "(* (exp ?a) (exp ?b))" => "(exp (+ ?a ?b))"),
     rewrite!("rec-exp"; "(/ 1 (exp ?a))" => "(exp (neg ?a))"),
     rewrite!("div-exp"; "(/ (exp ?a) (exp ?b))" => "(exp (- ?a ?b))"),
-    rewrite!("exp-prod"; "(exp (* ?a ?b))" => "(pow (exp ?a) ?b)"),
+    rewrite!("exp-prod"; "(exp (* ?a ?b))" => "(^ (exp ?a) ?b)"),
     rewrite!("exp-sqrt"; "(exp (/ ?a 2))" => "(sqrt (exp ?a))"),
     rewrite!("exp-cbrt"; "(exp (/ ?a 3))" => "(cbrt (exp ?a))"),
     rewrite!("exp-lft-sqr"; "(exp (* ?a 2))" => "(* (exp ?a) (exp ?a))"),
-    rewrite!("exp-lft-cube"; "(exp (* ?a 3))" => "(pow (exp ?a) 3)"),
+    rewrite!("exp-lft-cube"; "(exp (* ?a 3))" => "(^ (exp ?a) 3)"),
     rewrite!("exp-cbrt-rev"; "(cbrt (exp ?a))" => "(exp (/ ?a 3))"),
-    rewrite!("exp-lft-cube-rev"; "(pow (exp ?a) 3)" => "(exp (* ?a 3))"),
+    rewrite!("exp-lft-cube-rev"; "(^ (exp ?a) 3)" => "(exp (* ?a 3))"),
     rewrite!("exp-sqrt-rev"; "(sqrt (exp ?a))" => "(exp (/ ?a 2))"),
-    rewrite!("unpow-1"; "(pow ?a -1)" => "(/ 1 ?a)"),
-    rewrite!("unpow1"; "(pow ?a 1)" => "?a"),
-    rewrite!("unpow0"; "(pow ?a 0)" => "1"),
-    rewrite!("pow-base-1"; "(pow 1 ?a)" => "1"),
-    rewrite!("unpow1/2"; "(pow ?a 1/2)" => "(sqrt ?a)"),
-    rewrite!("unpow2"; "(pow ?a 2)" => "(* ?a ?a)"),
-    rewrite!("unpow3"; "(pow ?a 3)" => "(* (* ?a ?a) ?a)"),
-    rewrite!("unpow1/3"; "(pow ?a 1/3)" => "(cbrt ?a)"),
-    rewrite!("pow1/2"; "(sqrt ?a)" => "(pow ?a 1/2)"),
-    rewrite!("pow2"; "(* ?a ?a)" => "(pow ?a 2)"),
-    rewrite!("pow1/3"; "(cbrt ?a)" => "(pow ?a 1/3)"),
-    rewrite!("exp-to-pow"; "(exp (* (log ?a) ?b))" => "(pow ?a ?b)"),
-    rewrite!("pow-plus"; "(* (pow ?a ?b) ?a)" => "(pow ?a (+ ?b 1))"),
-    rewrite!("pow-exp"; "(pow (exp ?a) ?b)" => "(exp (* ?a ?b))"),
-    rewrite!("pow-prod-down"; "(* (pow ?b ?a) (pow ?c ?a))" => "(pow (* ?b ?c) ?a)"),
-    rewrite!("pow-prod-up"; "(* (pow ?a ?b) (pow ?a ?c))" => "(pow ?a (+ ?b ?c))"),
-    rewrite!("pow-flip"; "(/ 1 (pow ?a ?b))" => "(pow ?a (neg ?b))"),
-    rewrite!("pow-plus-rev"; "(pow ?a (+ ?b 1))" => "(* (rep-pow ?a ?b 1) ?a)"),
-    rewrite!("pow-neg"; "(pow ?a (neg ?b))" => "(rep 1 (rep-pow ?a ?b 0) 0)"),
+    rewrite!("unpow-1"; "(^ ?a -1)" => "(/ 1 ?a)"),
+    rewrite!("unpow1"; "(^ ?a 1)" => "?a"),
+    rewrite!("unpow0"; "(^ ?a 0)" => "1"),
+    rewrite!("pow-base-1"; "(^ 1 ?a)" => "1"),
+    rewrite!("unpow1/2"; "(^ ?a 1/2)" => "(sqrt ?a)"),
+    rewrite!("unpow2"; "(^ ?a 2)" => "(* ?a ?a)"),
+    rewrite!("unpow3"; "(^ ?a 3)" => "(* (* ?a ?a) ?a)"),
+    rewrite!("unpow1/3"; "(^ ?a 1/3)" => "(cbrt ?a)"),
+    rewrite!("pow1/2"; "(sqrt ?a)" => "(^ ?a 1/2)"),
+    rewrite!("pow2"; "(* ?a ?a)" => "(^ ?a 2)"),
+    rewrite!("pow1/3"; "(cbrt ?a)" => "(^ ?a 1/3)"),
+    rewrite!("exp-to-pow"; "(exp (* (log ?a) ?b))" => "(^ ?a ?b)"),
+    rewrite!("pow-plus"; "(* (^ ?a ?b) ?a)" => "(^ ?a (+ ?b 1))"),
+    rewrite!("pow-exp"; "(^ (exp ?a) ?b)" => "(exp (* ?a ?b))"),
+    rewrite!("pow-prod-down"; "(* (^ ?b ?a) (^ ?c ?a))" => "(^ (* ?b ?c) ?a)"),
+    rewrite!("pow-prod-up"; "(* (^ ?a ?b) (^ ?a ?c))" => "(^ ?a (+ ?b ?c))"),
+    rewrite!("pow-flip"; "(/ 1 (^ ?a ?b))" => "(^ ?a (neg ?b))"),
+    rewrite!("pow-plus-rev"; "(^ ?a (+ ?b 1))" => "(* (rep-pow ?a ?b 1) ?a)"),
+    rewrite!("pow-neg"; "(^ ?a (neg ?b))" => "(rep 1 (rep-pow ?a ?b 0) 0)"),
     rewrite!("log-rec"; "(log (/ 1 ?a))" => "(neg (log ?a))"),
-    rewrite!("log-pow"; "(log (pow ?a ?b))" => "(* ?b (rep-log (fabs ?a) 0))"),
+    rewrite!("log-pow"; "(log (^ ?a ?b))" => "(* ?b (rep-log (fabs ?a) 0))"),
     rewrite!("log-E"; "(log E)" => "1"),
     rewrite!("log-prod"; "(log (* ?a ?b))" => "(+ (log (fabs ?a)) (log (fabs ?b)))"),
     rewrite!("log-div"; "(log (/ ?a ?b))" => "(- (log (fabs ?a)) (log (fabs ?b)))"),
@@ -250,6 +255,12 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("hang-p0-tan"; "(/ (- 1 (cos ?a)) (sin ?a))" => "(tan (/ ?a 2))"),
     rewrite!("hang-m0-tan"; "(/ (- 1 (cos ?a)) (neg (sin ?a)))" => "(tan (/ (neg ?a) 2))"),
     rewrite!("hang-p-tan"; "(/ (+ (sin ?a) (sin ?b)) (+ (cos ?a) (cos ?b)))" => "(tan (/ (+ ?a ?b) 2))"),
+
+    // under-check
+    rewrite!("hang-0p-tan-recip"; "(/ (+ 1 (cos ?a)) (sin ?a))" => "(/ 1 (tan (/ ?a 2)))"),
+    rewrite!("hang-0m-tan-recip"; "(/ (+ 1 (cos ?a)) (neg (sin ?a)))" => "(/ 1 (tan (/ (neg ?a) 2)))"),
+    rewrite!("hang-p0-tan-recip"; "(/ (sin ?a) (- 1 (cos ?a)))" => "(/ 1 (tan (/ ?a 2)))"),
+    rewrite!("hang-m0-tan-recip"; "(/ (neg (sin ?a)) (- 1 (cos ?a)))" => "(/ 1 (tan (/ (neg ?a) 2)))"),
     rewrite!("1-sub-sin-rev"; "(* (cos ?a) (cos ?a))" => "(- 1 (* (sin ?a) (sin ?a)))"),
     rewrite!("hang-0m-tan-rev"; "(tan (/ (neg ?a) 2))" => "(/ (neg (sin ?a)) (+ 1 (cos ?a)))"),
     rewrite!("hang-0p-tan-rev"; "(tan (/ ?a 2))" => "(/ (sin ?a) (+ 1 (cos ?a)))"),
@@ -263,11 +274,11 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("sin-diff"; "(sin (- ?x ?y))" => "(- (* (sin ?x) (cos ?y)) (* (cos ?x) (sin ?y)))"),
     rewrite!("cos-diff"; "(cos (- ?x ?y))" => "(+ (* (cos ?x) (cos ?y)) (* (sin ?x) (sin ?y)))"),
     rewrite!("sin-2"; "(sin (* 2 ?x))" => "(* 2 (* (sin ?x) (cos ?x)))"),
-    rewrite!("sin-3"; "(sin (* 3 ?x))" => "(- (* 3 (sin ?x)) (* 4 (pow (sin ?x) 3)))"),
+    rewrite!("sin-3"; "(sin (* 3 ?x))" => "(- (* 3 (sin ?x)) (* 4 (^ (sin ?x) 3)))"),
     rewrite!("2-sin"; "(* 2 (* (sin ?x) (cos ?x)))" => "(sin (* 2 ?x))"),
-    rewrite!("3-sin"; "(- (* 3 (sin ?x)) (* 4 (pow (sin ?x) 3)))" => "(sin (* 3 ?x))"),
+    rewrite!("3-sin"; "(- (* 3 (sin ?x)) (* 4 (^ (sin ?x) 3)))" => "(sin (* 3 ?x))"),
     rewrite!("cos-2"; "(cos (* 2 ?x))" => "(- (* (cos ?x) (cos ?x)) (* (sin ?x) (sin ?x)))"),
-    rewrite!("cos-3"; "(cos (* 3 ?x))" => "(- (* 4 (pow (cos ?x) 3)) (* 3 (cos ?x)))"),
+    rewrite!("cos-3"; "(cos (* 3 ?x))" => "(- (* 4 (^ (cos ?x) 3)) (* 3 (cos ?x)))"),
     rewrite!("2-cos"; "(- (* (cos ?x) (cos ?x)) (* (sin ?x) (sin ?x)))" => "(cos (* 2 ?x))"),
     rewrite!("cos-diff-rev"; "(+ (* (cos ?x) (cos ?y)) (* (sin ?x) (sin ?y)))" => "(cos (- ?x ?y))"),
     rewrite!("sin-diff-rev"; "(- (* (sin ?x) (cos ?y)) (* (cos ?x) (sin ?y)))" => "(sin (- ?x ?y))"),
@@ -428,13 +439,13 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("fmax-swap"; "(fmax ?a ?b)" => "(fmax ?b ?a)"),
 
     // powers 
-    rewrite!("pow3"; "(* (* ?a ?a) ?a)" => "(pow ?a 3)"),
-    rewrite!("cube-div-rev"; "(/ (pow ?x 3) (pow ?y 3))" => "(pow (/ ?x ?y) 3)"),
-    rewrite!("inv-pow"; "(/ 1 ?a)" => "(pow ?a -1)"),
+    rewrite!("pow3"; "(* (* ?a ?a) ?a)" => "(^ ?a 3)"),
+    rewrite!("cube-div-rev"; "(/ (^ ?x 3) (^ ?y 3))" => "(^ (/ ?x ?y) 3)"),
+    rewrite!("inv-pow"; "(/ 1 ?a)" => "(^ ?a -1)"),
 
     // trig 
     rewrite!("sqr-sin-b-rev"; "(- 1 (* (cos ?x) (cos ?x)))" => "(* (sin ?x) (sin ?x))"),
-    rewrite!("3-cos"; "(- (* 4 (pow (cos ?x) 3)) (* 3 (cos ?x)))" => "(cos (* 3 ?x))"),
+    rewrite!("3-cos"; "(- (* 4 (^ (cos ?x) 3)) (* 3 (cos ?x)))" => "(cos (* 3 ?x))"),
 
     // manually added
 
@@ -445,14 +456,14 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 
     // polynomials
     rewrite!("difference-of-squares-rev"; "(* (+ ?a ?b) (- ?a ?b))" => "(- (* ?a ?a) (* ?b ?b))"),
-    rewrite!("sum-cubes-rev"; "(* (+ (* ?a ?a) (- (* ?b ?b) (* ?a ?b))) (+ ?a ?b))" => "(+ (pow ?a 3) (pow ?b 3))"),
+    rewrite!("sum-cubes-rev"; "(* (+ (* ?a ?a) (- (* ?b ?b) (* ?a ?b))) (+ ?a ?b))" => "(+ (^ ?a 3) (^ ?b 3))"),
 
     // exponents
     rewrite!("rem-exp-log"; "(exp (log ?x))" => "?x"),
     rewrite!("rem-log-exp"; "(log (exp ?x))" => "?x"),
     rewrite!("neg-log"; "(neg (log ?a))" => "(log (/ 1 ?a))"),
-    rewrite!("log-pow-rev"; "(* ?b (log ?a))" => "(log (pow ?a ?b))"),
-    rewrite!("pow-div"; "(/ (pow ?a ?b) (pow ?a ?c))" => "(pow ?a (- ?b ?c))"),
+    rewrite!("log-pow-rev"; "(* ?b (log ?a))" => "(log (^ ?a ?b))"),
+    rewrite!("pow-div"; "(/ (^ ?a ?b) (^ ?a ?c))" => "(^ ?a (- ?b ?c))"),
     rewrite!("exp-lft-sqr-rev"; "(* (exp ?a) (exp ?a))" => "(exp (* ?a 2))"),
     rewrite!("div-flip-rev"; "(/ 1 (/ ?b ?a))" => "(/ ?a ?b)"),
     rewrite!("div-flip"; "(/ ?a ?b)" => "(rep 1 (rep ?b ?a 0) (/ ?a ?b))"),
@@ -506,6 +517,10 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("flip3--"; "(- (cbrt ?a) (cbrt ?b))" => "(rep (- ?a ?b) (+ (* (cbrt ?a) (cbrt ?a)) (+ (* (cbrt ?b) (cbrt ?b)) (* (cbrt ?a) (cbrt ?b)))) (- (cbrt ?a) (cbrt ?b)))"),
     rewrite!("flip3-+"; "(+ (cbrt ?a) (cbrt ?b))" => "(rep (+ ?a ?b) (+ (* (cbrt ?a) (cbrt ?a)) (- (* (cbrt ?b) (cbrt ?b)) (* (cbrt ?a) (cbrt ?b)))) (+ (cbrt ?a) (cbrt ?b)))"),
 
+    // not in Herbie's rules.rkt -- see is_const's doc comment above
+    rewrite!("flip-sqrt-lit--"; "(- (sqrt ?a) ?c)" => "(rep (- ?a (* ?c ?c)) (+ (sqrt ?a) ?c) (- (sqrt ?a) ?c))" if is_const("?c")),
+    rewrite!("flip-sqrt-lit-+"; "(+ (sqrt ?a) ?c)" => "(rep (- ?a (* ?c ?c)) (- (sqrt ?a) ?c) (+ (sqrt ?a) ?c))" if is_const("?c")),
+
     // please look into these : 
     rewrite!("cos-neg-rev"; "(cos ?x)" => "(cos (neg ?x))"),
     rewrite!("cos-fabs-rev"; "(cos ?x)" => "(cos (fabs ?x))"),
@@ -517,6 +532,26 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("fp-cancel-sign-sub-inv"; "(+ ?a (* ?b ?c))" => "(- ?a (* (neg ?b) ?c))"),
     rewrite!("fp-cancel-sub-sign-inv"; "(- ?a (* ?b ?c))" => "(+ ?a (* (neg ?b) ?c))"),
     rewrite!("tan-+PI-rev"; "(tan ?x)" => "(tan (+ ?x PI))"),
+    rewrite!("tan-+PI"; "(tan (+ ?x PI))" => "(tan ?x)"),
+
+    rewrite!("fma-lower"; "(+ (* ?x ?y) ?z)" => "(fma ?x ?y ?z)"),
+    rewrite!("fma-lift"; "(fma ?x ?y ?z)" => "(+ (* ?x ?y) ?z)"),
+
+    // pre expr rules
+    rewrite!("expm1-lower"; "(- (exp ?x) 1)" => "(expm1 ?x)"),
+    rewrite!("expm1-lift"; "(expm1 ?x)" => "(- (exp ?x) 1)"),
+    rewrite!("log1p-lower"; "(log (+ 1 ?x))" => "(log1p ?x)"),
+    rewrite!("log1p-lift"; "(log1p ?x)" => "(log (+ 1 ?x))"),
+
+    // literals
+    rewrite!("2-split"; "2" => "(+ 1 1)"),          
+    rewrite!("1-split"; "1" => "(* 2 1/2)"),        
+    rewrite!("1-exp"; "1" => "(exp 0)"),             
+    rewrite!("e-exp-1"; "E" => "(exp 1)"),           
+    rewrite!("pow1"; "?a" => "(^ ?a 1)"),            
+    rewrite!("pow-base-0"; "(^ 0 ?a)" => "0"),       
+    rewrite!("sinh-0-rev"; "0" => "(sinh 0)"),       
+    rewrite!("cosh-0-rev"; "1" => "(cosh 0)"),       
 
     ]
 }

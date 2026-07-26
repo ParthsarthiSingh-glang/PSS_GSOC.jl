@@ -50,13 +50,57 @@ function preprocess_pcontext(context::SampleContext, held::Vector{Tuple{Symbol,A
 end
 
 """
-    fast_eval(expr, vars) -> Function
+    fix_odd_root_pow(expr::Num) -> Num
 
-Compiles expr into Float64 function - Herbie's fast evaluator
-but via build_function . nanmath defaults to true.
+"""
+function fix_odd_root_pow(expr::Num)::Num
+    subs = Dict{Any, Any}()
+    function collect!(u)
+        SymbolicUtils.iscall(u) || return
+        op = SymbolicUtils.operation(u)
+        args = SymbolicUtils.arguments(u)
+        foreach(a -> collect!(Symbolics.unwrap(a)), args)
+
+        if op == (^) && length(args) == 2
+            base, exp_arg = args
+            exp_u = Symbolics.unwrap(exp_arg)
+            exp_val = SymbolicUtils.isconst(exp_u) ? SymbolicUtils.unwrap_const(exp_u) :
+                      (exp_u isa Number ? exp_u : nothing)
+            if exp_val isa Rational && !isinteger(exp_val) && isodd(denominator(exp_val))
+                p = numerator(exp_val)
+                exp_float = Float64(exp_val)  # avoid huge-rational exponent -> stack overflow in ^
+                base_num = Num(base)
+                abs_pow = abs(base_num)^exp_float
+                replacement = isodd(p) ? sign(base_num) * abs_pow : abs_pow
+                subs[u] = Symbolics.unwrap(replacement)
+            end
+        end
+    end
+    collect!(Symbolics.unwrap(expr))
+    isempty(subs) && return expr
+    return Num(Symbolics.substitute(expr, subs))
+end
+
+
+"""
+    float_to_bigints(e) -> Any
+
+"""
+function float_to_bigints(e)
+    e isa Expr && return Expr(e.head, map(float_to_bigints, e.args)...)
+    (e isa BigInt || e isa BigFloat || e isa Rational{BigInt}) && return Float64(e)
+    return e
+end
+
+"""
+    fast_eval(expr, vars) -> Function
+    
 """
 function fast_eval(expr, vars)
-    return Symbolics.build_function(expr, vars...; expression=Val{false})
+    fixed = fix_odd_root_pow(Num(expr))
+    code = Symbolics.build_function(fixed, vars...; expression=Val{true})
+    f = eval(float_to_bigints(code))
+    return (args...) -> Base.invokelatest(f, args...)
 end
 
 """
@@ -76,7 +120,8 @@ function flonums_between(a::Float64, b::Float64)
     a_int = a_int < 0 ? (typemin(Int64) - a_int) : a_int
     b_int = b_int < 0 ? (typemin(Int64) - b_int) : b_int
 
-    return abs(b_int - a_int)
+    dist = abs(Int128(b_int) - Int128(a_int))
+    return dist > typemax(Int64) ? typemax(Int64) : Int64(dist)
 end
 
 """
@@ -94,6 +139,26 @@ Average of a list of per-point error values .
 errors_score(e) = sum(e) / length(e)
 
 """
+    points_errors(expr, vars, context::SampleContext; invalid_bits=64.0) -> Vector{Float64}
+
+Per-point bits-of-error for expr against context ground truth (the vector
+score_context made into their mean). 
+Invalid_bits defaults to 64.0 (Float64's width).
+"""
+function points_errors(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)::Vector{Float64}
+    f = fast_eval(expr, vars)
+    bits = Float64[]
+    for (point, ground_truth) in zip(context.points, context.original_values)
+        fast_val = Float64(f(point))
+        err = flonums_between(fast_val, ground_truth)
+        # Herbie finite-ulps (syntax/float.rkt) is 1 + abs(flonums-between(x,y)),
+        # never the raw distance directly -- fixes the ans to 0.0 case .
+        push!(bits, err == typemax(Int64) ? invalid_bits : ulps_to_bits(1 + err))
+    end
+    return bits
+end
+
+"""
     score_context(expr, vars, context::SampleContext; invalid_bits=64.0) -> Float64
 
 Scores expr Float64 accuracy against context ground truth.
@@ -101,14 +166,7 @@ Invalid_bits defaults to 64.0 (Float64's width).
 
 """
 function score_context(expr, vars, context::SampleContext; invalid_bits::Float64=64.0)
-    f = fast_eval(expr, vars)
-    bits = Float64[]
-    for (point, ground_truth) in zip(context.points, context.original_values)
-        fast_val = f(point)
-        err = flonums_between(fast_val, ground_truth)
-        push!(bits, err == typemax(Int64) ? invalid_bits : ulps_to_bits(err))
-    end
-    return errors_score(bits)
+    return errors_score(points_errors(expr, vars, context; invalid_bits=invalid_bits))
 end
 
 """

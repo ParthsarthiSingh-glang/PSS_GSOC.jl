@@ -19,6 +19,13 @@ function _num_to_sexpr(n)::String
         denominator(n) == 1 && return string(numerator(n))
         return "(/ $(numerator(n)) $(denominator(n)))"
     end
+    if n isa AbstractFloat
+        (isnan(n) || isinf(n)) && throw(ExactInfinityError())
+        isinteger(n) && return string(BigInt(n))
+        r = Rational{BigInt}(n)
+        denominator(r) == 0 && throw(ExactInfinityError())
+        return "(/ $(numerator(r)) $(denominator(r)))"
+    end
     return string(n)
 end
 
@@ -138,11 +145,15 @@ function totoken(s::AbstractString)::Vector{String}
     return tokens
 end
 
-function try_parse_rational(s::String)::Union{Rational{Int}, Nothing}
+function try_parse_rational(s::String)::Union{Rational{Int}, Rational{BigInt}, Nothing}
     try
-        parse(Rational{Int}, s)
+        return parse(Rational{Int}, s)
     catch
-        nothing
+    end
+    try
+        return parse(Rational{BigInt}, s)
+    catch
+        return nothing
     end
 end
 
@@ -175,6 +186,10 @@ function build_expr(tree, vars::Dict{String, Num})::Num
             return Num(float(base_n)^exp_n)
         end
         return build_expr(args[1], vars) ^ build_expr(args[2], vars)
+    end
+    if op == "fma" || op == "muladd"
+        f = op == "fma" ? fma : muladd
+        return f(build_expr(args[1], vars), build_expr(args[2], vars), build_expr(args[3], vars))
     end
     f = OP_MAP[op]
     children = [build_expr(a, vars) for a in args]

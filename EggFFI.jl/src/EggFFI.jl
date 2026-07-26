@@ -7,8 +7,12 @@ using SymbolicUtils
 # compile-preprocessing - fabs/copysign must be registered as a symbolic function so 
 # to_sexpr's nameof(operation(expr)) produces "fabs"/"copysign" matching
 # MathLang node names.
+
+import Base: fma, muladd, copysign
 @register_symbolic fabs(x::Real)
 @register_symbolic copysign(x::Real, y::Real)
+@register_symbolic fma(x::Real, y::Real, z::Real)
+@register_symbolic muladd(x::Real, y::Real, z::Real)
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(
@@ -16,20 +20,42 @@ const LIBPATH = joinpath(
 
 include("converter.jl")
 include("sampling.jl")
+include("pareto.jl")
+include("alttable.jl")
+include("mainloop.jl")
+include("taylor.jl")
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
-       optimize_expr, from_sexpr, to_sexpr,
+       optimize_expr, from_sexpr, to_sexpr, parse_sexpr,
        egraph_size, egraph_total_size, egraph_contains,
        egraph_eclass_size, egraph_find, egraph_root_id, egraph_id_to_expr,
-       egraph_eclass_enodes, egraph_dump_dot,
-       egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_rule_stats,
+       egraph_eclass_enodes, egraph_dump_dot, egraph_unsound,
+       egraph_num_classes, egraph_get_eclasses, egraph_get_proof, egraph_get_proof_flat, egraph_rule_stats,
        generate_candidates, find_preprocessing, compile_preprocessing, apply_preprocessing,
        preprocess_expr,
        egraph_add_node, egraph_add_root, insert_nodewise!,
        SampleContext, sample_context, preprocess_pcontext, fast_eval,
-       flonums_between, ulps_to_bits, errors_score, score_context, preprocessing_leq,
+       flonums_between, ulps_to_bits, errors_score, points_errors, score_context, preprocessing_leq,
        remove_unnecessary_preprocessing, rival_sample,
+       ParetoPoint, pareto_compare, pareto_union,
+       ast_size_cost, AltTable, make_alt_table, order_altns,
+       atab_active_alts, atab_all_alts, atab_not_done_alts, atab_completed,
+       atab_set_picked!, atab_eval_altns,
+       atab_add_altn!, invert_index, CoverageGroup, SetCover, atab_set_cover,
+       set_cover_remove!, removability_lt, atab_remove!, atab_prune!,
+       atab_add_altns!, atab_min_errors,
+       NUM_ITERATIONS, rewrite_variations, rewrite_variations_batch, run_iteration!, run_improve!, extract!,
+       extract_sorted!, extract_top!,
+       ImprovementReport, start_score, end_score, run_improve_with_report,
+       DerivationStep, build_derivation, print_derivation,
+       TSeries, make_series, series_ref, series_function, zero_series, taylor_exact,
+       first_nonzero_exp, normalize_series,
+       taylor_add, taylor_negate, taylor_mult, taylor_invert, taylor_quotient,
+       modulo_series, taylor_sqrt, taylor_cbrt, taylor_fabs, taylor_pow,
+       all_partitions, taylor_exp, taylor_sin, taylor_cos, taylor_log,
+       expand_taylor, taylor_series, make_monomial, make_horner,
+       make_approximator, taylor_candidates, taylor_variations,
        ExactInfinityError
 
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
@@ -78,6 +104,16 @@ function insert_nodewise!(ptr::Ptr{Cvoid}, tree)::UInt32
     end
 end
 
+"""
+    egraph_unsound(ptr::Ptr{Cvoid}) -> Bool
+
+True if ConstantFold::merge sees two unequal constant values for
+the same eclass during the last egraph_saturate! .
+"""
+function egraph_unsound(ptr::Ptr{Cvoid})::Bool
+    ccall((:egraph_unsound, LIBPATH), Bool, (Ptr{Cvoid},), ptr)
+end
+
 function egraph_saturate!(ptr::Ptr{Cvoid})
     ccall((:egraph_saturate, LIBPATH), Cvoid, (Ptr{Cvoid},), ptr)
 end
@@ -106,7 +142,14 @@ function egraph_destroy(ptr::Ptr{Cvoid})
     ccall((:egraph_destroy, LIBPATH), Cvoid, (Ptr{Cvoid},), ptr)
 end
 
-function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true)::Num
+"""
+    optimize_expr(expr, vars::Dict{String,Num}; warn=true, loop=false, n=256) -> Num
+
+"""
+function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true, loop::Bool = false, n::Int = 256)::Num
+    if loop
+        return run_improve!(expr, collect(values(vars)); n = n)
+    end
     s = to_sexpr(expr)
     ptr = egraph_create(s)
     egraph_saturate!(ptr)
@@ -119,9 +162,9 @@ function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true)::Num
     return from_sexpr(res, vars)
 end
 
-function optimize_expr(expr; warn::Bool = true)::Num
+function optimize_expr(expr; warn::Bool = true, loop::Bool = false, n::Int = 256)::Num
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
-    return optimize_expr(expr, vars; warn)
+    return optimize_expr(expr, vars; warn, loop, n)
 end
 
 """
@@ -265,6 +308,19 @@ function egraph_get_proof(ptr::Ptr{Cvoid}, expr::String, goal::String)::String
     result = unsafe_string(raw)
     ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
     return result
+end
+
+"""
+    egraph_get_proof_flat(ptr::Ptr{Cvoid}, expr::String, goal::String) -> Vector{String}
+
+Like egraph_get_proof, but returns egg's FLAT explanation 
+"""
+function egraph_get_proof_flat(ptr::Ptr{Cvoid}, expr::String, goal::String)::Vector{String}
+    raw = ccall((:egraph_get_proof_flat, LIBPATH), Ptr{UInt8},
+        (Ptr{Cvoid}, Cstring, Cstring), ptr, expr, goal)
+    result = unsafe_string(raw)
+    ccall((:egraph_free_string, LIBPATH), Cvoid, (Ptr{UInt8},), raw)
+    return split(result, "\n")
 end
 
 """

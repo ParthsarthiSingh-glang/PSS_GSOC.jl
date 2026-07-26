@@ -8,8 +8,9 @@ mod domain_search;
 
 use egg::*;
 use num_bigint::BigInt;
+use num_integer::Integer;
 use num_rational::Ratio;
-use num_traits::Zero;
+use num_traits::{One, Pow, Signed, Zero};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -79,6 +80,7 @@ impl Analysis<MathLang> for ConstantFold {
 
     fn make(egraph: &mut EGraph<MathLang, Self>, enode: &MathLang, _id: Id) -> Self::Data {
         let x = |i: &Id| egraph[*i].data.as_ref().map(|d| d.0.clone());
+        let is_zero = |i: &Id| egraph[*i].data.as_ref().map_or(false, |d| d.0.is_zero());
         let value = match enode {
             MathLang::Num(c)      => c.clone(),
             MathLang::Neg(a)      => -x(a)?,
@@ -90,6 +92,50 @@ impl Analysis<MathLang> for ConstantFold {
                 if denom.is_zero() { return None; }
                 x(a)? / denom
             }
+            MathLang::Pow([a, b]) => {
+                if is_zero(a) {
+                    if x(b)?.is_positive() {
+                        Constant::new(BigInt::from(0), BigInt::from(1))
+                    } else {
+                        return None;
+                    }
+                } else if is_zero(b) {
+                    Constant::new(BigInt::from(1), BigInt::from(1))
+                } else if x(b)?.is_integer() && x(b)?.abs() <= egraph.analysis.max_abs_exponent {
+                    Pow::pow(x(a)?, x(b)?.to_integer())
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Sqrt(a) => {
+                let a = x(a)?;
+                if *a.numer() > BigInt::from(0) && *a.denom() > BigInt::from(0) {
+                    let s1 = a.numer().sqrt();
+                    let s2 = a.denom().sqrt();
+                    let is_perfect = &(&s1 * &s1) == a.numer() && &(&s2 * &s2) == a.denom();
+                    if is_perfect { Constant::new(s1, s2) } else { return None; }
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Log(a) => {
+                if x(a)? == Constant::new(BigInt::from(1), BigInt::from(1)) {
+                    Constant::new(BigInt::from(0), BigInt::from(1))
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Cbrt(a) => {
+                if x(a)? == Constant::new(BigInt::from(1), BigInt::from(1)) {
+                    Constant::new(BigInt::from(1), BigInt::from(1))
+                } else {
+                    return None;
+                }
+            }
+            MathLang::Fabs(a) => x(a)?.abs(),
+            MathLang::Floor(a) => x(a)?.floor(),
+            MathLang::Ceil(a) => x(a)?.ceil(),
+            MathLang::Round(a) => x(a)?.round(),
             _ => return None,
         };
 
@@ -162,7 +208,7 @@ fn make_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 fn rep_removal_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     vec![
         rewrite!("remove-rep"; "(rep ?a ?b ?c)" => "(/ ?a ?b)"),
-        rewrite!("remove-rep-pow"; "(rep-pow ?a ?b ?c)" => "(pow ?a ?b)"),
+        rewrite!("remove-rep-pow"; "(rep-pow ?a ?b ?c)" => "(^ ?a ?b)"),
         rewrite!("remove-rep-log"; "(rep-log ?a ?b)" => "(log ?a)"),
     ]
 }
@@ -176,16 +222,57 @@ fn rep_removal_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
 //     }
 // }
 
-struct AstWithRep;
-impl CostFunction<MathLang> for AstWithRep {
+fn herbie_op_cost(op: &str) -> usize {
+    match op {
+        "+" => 200, "-" => 200, "*" => 250, "/" => 350, "^" => 2000,
+        "neg" => 125, "sqrt" => 250, "fabs" => 125, "abs" => 125,
+        "ceil" => 250, "floor" => 300, "round" => 850, "log" => 750, "cbrt" => 2000,
+        "sin" => 4200, "cos" => 4200, "tan" => 4650,
+        "asin" => 500, "acos" => 500, "atan" => 1100,
+        "sinh" => 1750, "cosh" => 1650, "tanh" => 1000,
+        "asinh" => 1125, "acosh" => 850, "atanh" => 450,
+        "erf" => 1125, "erfc" => 900,
+        "exp" => 1375, "log1p" => 1300, "expm1" => 900,
+        "copysign" => 200, "fmin" => 250, "fmax" => 250,
+        "atan2" => 2000, "hypot" => 1700, "remainder" => 1000,
+        "fma" => 375,
+        _ => 125, 
+    }
+}
+
+struct AstWithRep<'a> {
+    egraph: &'a EGraph<MathLang, ConstantFold>,
+}
+impl<'a> CostFunction<MathLang> for AstWithRep<'a> {
     type Cost = usize;
     fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> Self::Cost
     where C: FnMut(Id) -> Self::Cost {
-        match enode {
-            MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => usize::MAX, // rep nodes
-            _ => enode.fold(1, |sum, id| usize::saturating_add(sum, costs(id))),// Astsize()
-            // please look into the costs of sqrt,sinh,cosh,etc.
+        if let MathLang::Pow([_, exp_id]) = enode {
+            if let Some((n, _)) = &self.egraph[*exp_id].data {
+                if !n.denom().is_one() && n.denom().is_odd() {
+                    return usize::MAX;
+                }
+            }
         }
+        let own_cost = match enode {
+            MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => return usize::MAX, // rep nodes
+            MathLang::Add(_) => herbie_op_cost("+"),
+            MathLang::Sub(_) => herbie_op_cost("-"),
+            MathLang::Mul(_) => herbie_op_cost("*"),
+            MathLang::Div(_) => herbie_op_cost("/"),
+            MathLang::Pow(_) => herbie_op_cost("^"),
+            MathLang::Neg(_) => herbie_op_cost("neg"),
+            MathLang::Sqrt(_) => herbie_op_cost("sqrt"),
+            MathLang::Fabs(_) => herbie_op_cost("fabs"),
+            MathLang::Ceil(_) => herbie_op_cost("ceil"),
+            MathLang::Floor(_) => herbie_op_cost("floor"),
+            MathLang::Round(_) => herbie_op_cost("round"),
+            MathLang::Log(_) => herbie_op_cost("log"),
+            MathLang::Cbrt(_) => herbie_op_cost("cbrt"),
+            MathLang::Num(_) | MathLang::Symbol(_) => 125, 
+            MathLang::Other(sym, _) => herbie_op_cost(sym.as_str()),
+        };
+        enode.fold(own_cost, |sum, id| usize::saturating_add(sum, costs(id)))
     }
 }
 
@@ -259,6 +346,14 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
         rule.apply(&mut egraph, &matches);
         egraph.rebuild();
     }
+    //pruning 
+    if egraph.analysis.prune {
+        egraph.classes_mut().for_each(|eclass| {
+            if eclass.nodes.iter().any(|n| n.is_leaf()) {
+                eclass.nodes.retain(|n| n.is_leaf());
+            }
+        });
+    }
     eg.stop_reason = stop;
     eg.root        = egraph.find(root);
     eg.egraph      = egraph;
@@ -277,7 +372,7 @@ pub extern "C" fn egraph_stop_reason(ptr: *mut EGraphWithRoot) -> u8 {
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    let (_, best) = Extractor::new(&eg.egraph, AstWithRep).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstWithRep { egraph: &eg.egraph }).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
 }
 
@@ -403,7 +498,7 @@ pub extern "C" fn egraph_rule_stats(ptr: *mut EGraphWithRoot) -> *mut c_char {
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    let (_, best) = Extractor::new(&eg.egraph, AstWithRep).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstWithRep { egraph: &eg.egraph }).find_best(eg.root);
     CString::new(best.pretty(width as usize)).unwrap().into_raw()
 }
 
@@ -414,16 +509,49 @@ pub extern "C" fn egraph_id_to_expr(ptr: *mut EGraphWithRoot, id: u32) -> *mut c
     CString::new(expr.to_string()).unwrap().into_raw()
 }
 
+fn guarded_proof_string<F: FnOnce() -> String + std::panic::UnwindSafe>(f: F) -> String {
+    match std::panic::catch_unwind(f) {
+        Ok(s) => s,
+        Err(payload) => {
+            let msg = payload
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "unknown panic".to_string());
+            format!("PROOF_ERROR: {}", msg)
+        }
+    }
+}
+
 // herbie/egg-herbie/src/lib.rs egraph_get_proof
 #[no_mangle]
 pub extern "C" fn egraph_get_proof(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char, goal_ptr: *const c_char) -> *mut c_char {
-    let eg = unsafe { &mut *ptr };
-    let expr: RecExpr<MathLang> = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().parse().unwrap();
-    let goal: RecExpr<MathLang> = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().parse().unwrap();
-    let string = eg.egraph
-        .explain_equivalence(&expr, &goal)
-        .get_string_with_let()
-        .replace('\n', " ");
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().to_string();
+    let goal_str = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().to_string();
+    let string = guarded_proof_string(std::panic::AssertUnwindSafe(|| {
+        let eg = unsafe { &mut *ptr };
+        let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+        let goal: RecExpr<MathLang> = goal_str.parse().unwrap();
+        eg.egraph
+            .explain_equivalence(&expr, &goal)
+            .get_string_with_let()
+            .replace('\n', " ")
+    }));
+    CString::new(string).unwrap().into_raw()
+}
+
+// flat explanation (egg::Explanation::get_flat_strings)
+#[no_mangle]
+pub extern "C" fn egraph_get_proof_flat(ptr: *mut EGraphWithRoot, expr_ptr: *const c_char, goal_ptr: *const c_char) -> *mut c_char {
+    let expr_str = unsafe { CStr::from_ptr(expr_ptr) }.to_str().unwrap().to_string();
+    let goal_str = unsafe { CStr::from_ptr(goal_ptr) }.to_str().unwrap().to_string();
+    let string = guarded_proof_string(std::panic::AssertUnwindSafe(|| {
+        let eg = unsafe { &mut *ptr };
+        let expr: RecExpr<MathLang> = expr_str.parse().unwrap();
+        let goal: RecExpr<MathLang> = goal_str.parse().unwrap();
+        let mut explanation = eg.egraph.explain_equivalence(&expr, &goal);
+        explanation.get_flat_strings().join("\n")
+    }));
     CString::new(string).unwrap().into_raw()
 }
 
@@ -437,7 +565,7 @@ pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mu
     let mut result = String::new();
     
     // 1. Create the real Extractor ONCE up here!
-    let mut extractor = Extractor::new(&eg.egraph, AstWithRep);
+    let mut extractor = Extractor::new(&eg.egraph, AstWithRep { egraph: &eg.egraph });
 
     for enode in &eclass.nodes {
         if matches!(enode, MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_)) {
@@ -478,7 +606,10 @@ pub extern "C" fn egraph_dump_dot(ptr: *mut EGraphWithRoot, path_ptr: *const c_c
 fn single_var_name(expr: &RecExpr<MathLang>) -> String {
     for node in expr.as_ref() {
         if let MathLang::Symbol(s) = node {
-            return s.to_string();
+            let name = s.to_string();
+            if name != "PI" && name != "E" {
+                return name;
+            }
         }
     }
     panic!("expression has no variable");

@@ -18,7 +18,14 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
             let denom = rug::Integer::from_str(&c.denom().to_string()).unwrap();
             Expr::Rational(rug::Rational::from((numer, denom)))
         }
-        MathLang::Symbol(s) => Expr::Var(s.to_string()),
+        MathLang::Symbol(s) => {
+            let name = s.to_string();
+            match name.as_str() {
+                "PI" => Expr::Pi,
+                "E"  => Expr::E,
+                _ => Expr::Var(name),
+            }
+        }
 
         // unary 
         MathLang::Neg(a)   => Expr::Neg(Box::new(mathlang_to_rival(expr, *a))),
@@ -42,7 +49,9 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
             let name = sym.as_str();
             let a = || Box::new(mathlang_to_rival(expr, args[0]));
             let b = || Box::new(mathlang_to_rival(expr, args[1]));
+            let c = || Box::new(mathlang_to_rival(expr, args[2]));
             match (name, args.len()) {
+                ("fma", 3) => Expr::Fma(a(), b(), c()),
                 ("sin", 1)  => Expr::Sin(a()),
                 ("cos", 1)  => Expr::Cos(a()),
                 ("tan", 1)  => Expr::Tan(a()),
@@ -52,12 +61,21 @@ pub fn mathlang_to_rival(expr: &RecExpr<MathLang>, id: Id) -> Expr {
                 ("sinh", 1) => Expr::Sinh(a()),
                 ("cosh", 1) => Expr::Cosh(a()),
                 ("tanh", 1) => Expr::Tanh(a()),
+                ("asinh", 1) => Expr::Asinh(a()),
+                ("acosh", 1) => Expr::Acosh(a()),
+                ("atanh", 1) => Expr::Atanh(a()),
+                ("erf", 1)  => Expr::Erf(a()),
+                ("erfc", 1) => Expr::Erfc(a()),
+                ("abs", 1)  => Expr::Fabs(a()),
                 ("exp", 1)  => Expr::Exp(a()),
+                ("log1p", 1) => Expr::Log1p(a()),
+                ("expm1", 1) => Expr::Expm1(a()),
                 ("copysign", 2) => Expr::Copysign(a(), b()),
                 ("fmin", 2) => Expr::Fmin(a(), b()),
                 ("fmax", 2) => Expr::Fmax(a(), b()),
                 ("atan2", 2) => Expr::Atan2(a(), b()),
                 ("hypot", 2) => Expr::Hypot(a(), b()),
+                ("remainder", 2) => Expr::Remainder(a(), b()),
                 _ => panic!("Other operator: {} (arity {}) not in to_rival.rs list", name, args.len()),
             }
         }
