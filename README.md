@@ -116,6 +116,10 @@ Introspection functions available after `egraph_saturate!`:
 - [Metatheory.jl](https://github.com/JuliaSymbolics/Metatheory.jl)
 - [Julia ccall docs](https://docs.julialang.org/en/v1/manual/calling-c-and-fortran-code/)
 
+## Author :
+
+@ParthsarthiSingh-glang
+
 ## AI Assistance
 
 Developed with assistance from Claude (Anthropic).
