@@ -8,8 +8,9 @@ mod domain_search;
 
 use egg::*;
 use num_bigint::BigInt;
+use num_integer::Integer;
 use num_rational::Ratio;
-use num_traits::{Pow, Signed, Zero};
+use num_traits::{One, Pow, Signed, Zero};
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -239,11 +240,20 @@ fn herbie_op_cost(op: &str) -> usize {
     }
 }
 
-struct AstWithRep;
-impl CostFunction<MathLang> for AstWithRep {
+struct AstWithRep<'a> {
+    egraph: &'a EGraph<MathLang, ConstantFold>,
+}
+impl<'a> CostFunction<MathLang> for AstWithRep<'a> {
     type Cost = usize;
     fn cost<C>(&mut self, enode: &MathLang, mut costs: C) -> Self::Cost
     where C: FnMut(Id) -> Self::Cost {
+        if let MathLang::Pow([_, exp_id]) = enode {
+            if let Some((n, _)) = &self.egraph[*exp_id].data {
+                if !n.denom().is_one() && n.denom().is_odd() {
+                    return usize::MAX;
+                }
+            }
+        }
         let own_cost = match enode {
             MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_) => return usize::MAX, // rep nodes
             MathLang::Add(_) => herbie_op_cost("+"),
@@ -362,7 +372,7 @@ pub extern "C" fn egraph_stop_reason(ptr: *mut EGraphWithRoot) -> u8 {
 #[no_mangle]
 pub extern "C" fn egraph_extract(ptr: *mut EGraphWithRoot) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    let (_, best) = Extractor::new(&eg.egraph, AstWithRep).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstWithRep { egraph: &eg.egraph }).find_best(eg.root);
     CString::new(best.to_string()).unwrap().into_raw()
 }
 
@@ -488,7 +498,7 @@ pub extern "C" fn egraph_rule_stats(ptr: *mut EGraphWithRoot) -> *mut c_char {
 #[no_mangle]
 pub extern "C" fn egraph_pretty_extract(ptr: *mut EGraphWithRoot, width: u32) -> *mut c_char {
     let eg = unsafe { &*ptr };
-    let (_, best) = Extractor::new(&eg.egraph, AstWithRep).find_best(eg.root);
+    let (_, best) = Extractor::new(&eg.egraph, AstWithRep { egraph: &eg.egraph }).find_best(eg.root);
     CString::new(best.pretty(width as usize)).unwrap().into_raw()
 }
 
@@ -555,7 +565,7 @@ pub extern "C" fn egraph_eclass_enodes(ptr: *mut EGraphWithRoot, id: u32) -> *mu
     let mut result = String::new();
     
     // 1. Create the real Extractor ONCE up here!
-    let mut extractor = Extractor::new(&eg.egraph, AstWithRep);
+    let mut extractor = Extractor::new(&eg.egraph, AstWithRep { egraph: &eg.egraph });
 
     for enode in &eclass.nodes {
         if matches!(enode, MathLang::Rep(_) | MathLang::RepPow(_) | MathLang::RepLog(_)) {
@@ -622,7 +632,7 @@ pub extern "C" fn rival_find_domain(expr_ptr: *const c_char) -> *mut c_char {
         rug::Float::with_val(53, f64::INFINITY),
     );
 
-    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 128);
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
     confirmed_true.extend(leftover_ambiguous);
 
     let mut result = String::new();
@@ -686,7 +696,7 @@ pub extern "C" fn rival_sample_points(expr_ptr: *const c_char, n: usize) -> *mut
         rug::Float::with_val(53, f64::INFINITY),
     );
 
-    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 128);
+    let (mut confirmed_true, leftover_ambiguous) = domain_search::find_valid_domain(&mut machine, start, 12);
     confirmed_true.extend(leftover_ambiguous);
 
     let mut result = String::new();

@@ -21,10 +21,29 @@ const HERBIE_OP_COST = Dict{String, Float64}(
 )
 const HERBIE_MOVE_COST = 0.125  # leaves
 
-function _tree_cost(tree)::Float64
+"""
+    is_odd_denom(tree) -> Bool
+
+"""
+function is_odd_denom(tree)::Bool
+    tree isa AbstractString && return false
+    op, args = tree
+    (op == "/" && length(args) == 2) || return false
+    denom = tryparse(BigInt, args[2])
+    return denom !== nothing && isodd(denom)
+end
+
+"""
+    tree_cost(tree) -> Float64
+    
+"""
+function tree_cost(tree)::Float64
     tree isa AbstractString && return HERBIE_MOVE_COST
     op, args = tree
-    return get(HERBIE_OP_COST, op, HERBIE_MOVE_COST) + sum(_tree_cost(a) for a in args; init = 0.0)
+    if op == "^" && length(args) == 2 && is_odd_denom(args[2])
+        return Inf
+    end
+    return get(HERBIE_OP_COST, op, HERBIE_MOVE_COST) + sum(tree_cost(a) for a in args; init = 0.0)
 end
 
 """
@@ -33,7 +52,7 @@ end
 Node-count cost, walking the Symbolics/SymbolicUtils tree directly .
 """
 function ast_size_cost(expr)::Float64
-    return _tree_cost(parse_sexpr(to_sexpr(expr)))
+    return tree_cost(parse_sexpr(to_sexpr(expr)))
 end
 
 """
