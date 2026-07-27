@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "egg_julia_ffi"
+name = "jerbie"
 crate-type = ["cdylib"]
 
 [dependencies]

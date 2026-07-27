@@ -1,8 +1,8 @@
 using Test
 using Symbolics
 
-include("../src/EggFFI.jl")
-using .EggFFI
+include("../src/Jerbie.jl")
+using .Jerbie
 
 @variables x
 
@@ -124,7 +124,7 @@ end
         ptr = egraph_create(to_sexpr(expr))
         egraph_saturate!(ptr)
 
-        unsound = ccall((:egraph_unsound, EggFFI.LIBPATH), Bool, (Ptr{Cvoid},), ptr)
+        unsound = ccall((:egraph_unsound, Jerbie.LIBPATH), Bool, (Ptr{Cvoid},), ptr)
 
         egraph_destroy(ptr)
 

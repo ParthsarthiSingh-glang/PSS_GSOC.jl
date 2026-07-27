@@ -1,6 +1,9 @@
 # Rust build output
 egg-julia-ffi/target/
 
+# vendored at build time (see BINARYBUILDER.md plan) — not committed
+egg-julia-ffi/rival3/
+
 # Julia artifacts
 *.ji
 *.so
