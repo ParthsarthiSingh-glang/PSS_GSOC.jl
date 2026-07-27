@@ -1,78 +1,92 @@
-# EggFFI.jl
+# Jerbie.jl
 
-Julia bindings to [egg](https://egraphs-good.github.io/egg/) for numerical accuracy optimization of symbolic expressions — SciML Summer Fellowship 2026.
+Julia bindings to [egg](https://egraphs-good.github.io/egg/) for numerical accuracy optimization of symbolic expressions — SciML Summer Fellowship 2026. The end goal: a user writes `optimize_accuracy(expr)` on a Symbolics.jl expression and gets back a numerically better equivalent.
 
-The end goal: a user writes `optimize_accuracy(expr)` on a Symbolics.jl expression and gets back a numerically better equivalent.
-
+---
 ## Project Structure
-
-```
-EggFFI.jl/
-  src/EggFFI.jl        ← ccall wrappers + optimize_expr pipeline
-  src/converter.jl     ← to_sexpr: Symbolics expr → s-expression string
-  test/runtests.jl     ← structural tests + Herbie benchmark expressions
-  Project.toml
-
+```text
+Jerbie.jl/
+├── src/
+│   ├── Jerbie.jl
+│   ├── converter.jl
+│   ├── sampling.jl
+│   ├── taylor.jl
+│   ├── alttable.jl
+│   ├── mainloop.jl
+│   ├── pareto.jl
+│   └── rules.jl
+│
+├── test/
+│   ├── runtests.jl
+│   ├── egraphtests.jl
+│   ├── fpcore_tests.jl
+│   ├── fpcore_bench.jl
+│   └── compare_herbie.jl
+│
 egg-julia-ffi/
-  src/lib.rs           ← MathLang (150+ nodes), EGraphWithRoot, FFI functions
-  Cargo.toml
+├── src/
+│   ├── lib.rs
+│   ├── herbie_rules.rs
+│   ├── domain_search.rs
+│   ├── discretization.rs
+│   ├── to_rival.rs
+│   └── my_rules.rs
+└── Cargo.toml
 ```
+---
 
 ## Pipeline
-
+```text
+run_improve_with_report(expr, [x])
+    │
+    ├─► Preprocessing & Sampling  (sampling.jl)
+    │     • Generates SampleContext & preprocesses initial expression
+    │     • Initializes AltTable with initial candidate
+    │
+    └─► Main Iterative Loop (mainloop.jl — up to NUM_ITERATIONS)
+          │
+          ├─► Candidate Generation:
+          │     1. Shared E-Graph Saturation (rewrite_variations_batch):
+          │        Inserts ALL pending alternatives into ONE SHARED E-Graph ,
+          │        saturates once  and extracts variations per root.
+          │     2. Symbolic Taylor Series (taylor.jl):
+          │        Generates polynomial expansions around 0, ∞, -∞.
+          │
+          ├─► Scoring & Evaluation (sampling.jl):
+          │        Evaluates ULP error for each candidate over SampleContext.
+          │
+          ├─► Candidate Selection & Pruning (alttable.jl / pareto.jl):
+          │        Applies Greedy Set-Cover and Pareto pruning to select active alternatives.
+          │
+          └─► Winner Extraction (extract!):
+                   Selects the best expression balancing ULP error score and AST size cost.
 ```
-Symbolics expr
-    ↓  to_sexpr          — reads AddMul coeff/dict (SymbolicUtils/src/types.jl)
-s-expression string
-    ↓  egraph_create     — Rust: string → RecExpr → EGraph
-    ↓  egraph_saturate!  — Rust: rewrite rules until saturation
-    ↓  egraph_extract    — Rust: cost function → best expression
-    ↓  egraph_destroy    — Rust: free heap
-    ↓  from_sexpr        — string → Symbolics expr [next]
-Symbolics expr (optimized)
-```
+---
 
 ## Quick Start
-
+### 1. Build the Rust Backend
+Compile the `egg-julia-ffi` Rust library:
+```bash
+cd egg-julia-ffi
+cargo build --release
+cd ..
+```
+### 2. Run in Julia
 ```julia
-# build Rust crate first: cd egg-julia-ffi && cargo build --release
-
-using Pkg; Pkg.activate(".")
-include("src/EggFFI.jl")
+using Pkg
+Pkg.activate("Jerbie.jl")
+include("Jerbie.jl/src/Jerbie.jl")
+using .Jerbie
 using Symbolics
-
 @variables x
-EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
-# → "(/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))"
+expr1 = sqrt(x + 1) - sqrt(x)
+report1 = run_improve_with_report(expr1, [x])
+println("Original:  ", expr1)
+println("Winner:    ", report1.winner)
+println("ULP Score: ", start_score(report1), " -> ", end_score(report1))
+
 ```
-
-## Done
-
-**Phase 1 — FFI layer**
-- `MathLang` (150+ nodes) + 4 C-exported functions in `egg-julia-ffi/src/lib.rs`
-- Julia `ccall` wrappers in `EggFFI.jl`
-- Round-trip verified: s-expression → egg → saturate → extract → string
-
-**Phase 2 — `to_sexpr` ([PR #4](https://github.com/ParthsarthiSingh-glang/PSS_GSOC.jl/pull/4))**
-- Reads `coeff` and `dict` directly from `AddMul` nodes — `SymbolicUtils/src/types.jl`
-- Emits `(- a b)` for subtraction and `(neg a)` for negation — matching Herbie rule patterns (`herbie/src/core/rules.rkt`)
-- Added `"neg" = Neg(Id)` to `MathLang` — matching `herbie/egg-herbie/src/math.rs`
-- Tests cover structural cases + Herbie benchmark expressions (`herbie/bench/`)
-
-**Demo**
-
-```julia
-@variables x
-EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
-# → "(/ 1 (+ (sqrt (+ 1 x)) (sqrt x)))"
-```
-
-## Next Steps
-
-- **Port Herbie rules** — `to_sexpr` now emits `(- a b)` so rules from `herbie/src/core/rules.rkt` port directly (`flip--`, `diff-log`, `sum-log`, FMA transforms)
-- **`from_sexpr`** — parse result string back to `Symbolics.Num` via `maketerm` (`SymbolicUtils/src/terminterface.jl`)
-- **Constant folding** — `ConstantFolding` Analysis in egg (`egg/src/language.rs`) to simplify numerators
-- **Sampling cost function** — replace `StabilityCost` with Float64 vs BigFloat accuracy sampling (Phase 4)
+---
 
 ## References
 
@@ -80,8 +94,14 @@ EggFFI.optimize_expr(sqrt(x + 1) - sqrt(x))
 - [Herbie](https://herbie.uwplse.org/) — [rules.rkt](https://github.com/herbie-fp/herbie/blob/main/src/core/rules.rkt)
 - [TermInterface.jl](https://github.com/JuliaSymbolics/TermInterface.jl)
 - [SymbolicUtils.jl](https://github.com/JuliaSymbolics/SymbolicUtils.jl)
+- [Symbolics.jl parsing](https://docs.sciml.ai/Symbolics/stable/manual/parsing/)
+- [Metatheory.jl](https://github.com/JuliaSymbolics/Metatheory.jl)
 - [Julia ccall docs](https://docs.julialang.org/en/v1/manual/calling-c-and-fortran-code/)
+
+## Author :
+
+@ParthsarthiSingh-glang
 
 ## AI Assistance
 
-Developed with assistance from [Claude Pro](https://claude.ai) (Anthropic) — used for reading source across SymbolicUtils.jl, egg, and Herbie repos, debugging FFI issues, and writing tests.
+Developed with assistance from Claude (Anthropic). Especially for test generation , parsing , etc.

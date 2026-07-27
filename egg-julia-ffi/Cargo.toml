@@ -4,9 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "egg_julia_ffi"
+name = "jerbie"
 crate-type = ["cdylib"]
 
 [dependencies]
 egg = { version = "0.11"}
-ordered-float = "3"
+num-rational = "0.4"
+num-bigint = "0.4"
+num-integer = "0.1"
+num-traits = "0.2"
+log = "0.4"
+rival3 = { path = "rival3" }
+rug = { version = "1.28", features = ["float"] }
+rand = "0.9"
+
