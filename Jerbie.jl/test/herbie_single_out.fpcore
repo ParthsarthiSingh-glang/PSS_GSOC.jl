@@ -1,0 +1,7 @@
+;; seed: 1680205996
+
+(FPCore (x)
+  :name "(- (sqrt (+ x 1)) (sqrt x))"
+  :precision binary64
+  :spec (- (sqrt (+ x 1)) (sqrt x))
+  (/ 1.0 (+ (sqrt x) (sqrt (+ 1.0 x)))))

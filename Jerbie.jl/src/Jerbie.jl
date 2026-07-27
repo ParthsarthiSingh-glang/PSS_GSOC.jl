@@ -1,4 +1,4 @@
-module EggFFI
+module Jerbie
 
 using TermInterface
 using Symbolics
@@ -16,7 +16,7 @@ import Base: fma, muladd, copysign
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(
-    @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "egg_julia_ffi")
+    @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "jerbie")
 
 include("converter.jl")
 include("sampling.jl")

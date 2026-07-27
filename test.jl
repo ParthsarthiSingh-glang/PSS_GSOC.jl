@@ -1,6 +1,6 @@
 using Symbolics
-include("E:/PSS_GSOC.jl/EggFFI.jl/src/EggFFI.jl")
-using .EggFFI
+include("E:/PSS_GSOC.jl/Jerbie.jl/src/Jerbie.jl")
+using .Jerbie
 @variables x
 
 function test_case(expr, rat_sexpr, label)

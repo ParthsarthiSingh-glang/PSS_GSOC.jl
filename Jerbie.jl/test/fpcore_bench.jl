@@ -5,8 +5,8 @@
 using Test
 using Symbolics
 
-include("../src/EggFFI.jl")
-using .EggFFI
+include("../src/Jerbie.jl")
+using .Jerbie
 
 @variables x y z a b c d e f g h n N p q r s t u v w
 @variables re im base

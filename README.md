@@ -1,13 +1,13 @@
-# EggFFI.jl
+# Jerbie.jl
 
 Julia bindings to [egg](https://egraphs-good.github.io/egg/) for numerical accuracy optimization of symbolic expressions — SciML Summer Fellowship 2026. The end goal: a user writes `optimize_accuracy(expr)` on a Symbolics.jl expression and gets back a numerically better equivalent.
 
 ---
 ## Project Structure
 ```text
-EggFFI.jl/
+Jerbie.jl/
 ├── src/
-│   ├── EggFFI.jl
+│   ├── Jerbie.jl
 │   ├── converter.jl
 │   ├── sampling.jl
 │   ├── taylor.jl
@@ -74,9 +74,9 @@ cd ..
 ### 2. Run in Julia
 ```julia
 using Pkg
-Pkg.activate("EggFFI.jl")
-include("EggFFI.jl/src/EggFFI.jl")
-using .EggFFI
+Pkg.activate("Jerbie.jl")
+include("Jerbie.jl/src/Jerbie.jl")
+using .Jerbie
 using Symbolics
 @variables x
 expr1 = sqrt(x + 1) - sqrt(x)
