@@ -191,6 +191,8 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("pow-plus"; "(* (^ ?a ?b) ?a)" => "(^ ?a (+ ?b 1))"),
     rewrite!("pow-exp"; "(^ (exp ?a) ?b)" => "(exp (* ?a ?b))"),
     rewrite!("pow-prod-down"; "(* (^ ?b ?a) (^ ?c ?a))" => "(^ (* ?b ?c) ?a)"),
+    // unsound @ a=1/2, b=c=-1 
+    rewrite!("unpow-prod-down"; "(^ (* ?b ?c) ?a)" => "(* (^ ?b ?a) (^ ?c ?a))"),
     rewrite!("pow-prod-up"; "(* (^ ?a ?b) (^ ?a ?c))" => "(^ ?a (+ ?b ?c))"),
     rewrite!("pow-flip"; "(/ 1 (^ ?a ?b))" => "(^ ?a (neg ?b))"),
     rewrite!("pow-plus-rev"; "(^ ?a (+ ?b 1))" => "(* (rep-pow ?a ?b 1) ?a)"),
