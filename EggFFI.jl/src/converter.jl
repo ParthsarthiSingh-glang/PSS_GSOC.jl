@@ -7,10 +7,14 @@ include("rules.jl")
 
 struct ExactInfinityError <: Exception end
 
-# FPCore named constant
-const NAMED_CONSTANTS = Dict{String, Float64}(
-    "PI" => Float64(pi),
-    "E"  => Float64(MathConstants.e),
+const NAMED_CONSTANTS = Dict{String, Irrational}(
+    "PI" => pi,
+    "E"  => MathConstants.e,
+)
+
+const NAMED_CONSTANT_NAMES = Dict{Irrational, String}(
+    pi => "PI",
+    MathConstants.e => "E",
 )
 
 function _num_to_sexpr(n)::String
@@ -18,6 +22,10 @@ function _num_to_sexpr(n)::String
         denominator(n) == 0 && throw(ExactInfinityError())
         denominator(n) == 1 && return string(numerator(n))
         return "(/ $(numerator(n)) $(denominator(n)))"
+    end
+    if n isa Irrational
+        haskey(NAMED_CONSTANT_NAMES, n) && return NAMED_CONSTANT_NAMES[n]
+        error("to_sexpr: no named-constant mapping for irrational $n; egg/rival only know PI and E")
     end
     if n isa AbstractFloat
         (isnan(n) || isinf(n)) && throw(ExactInfinityError())
@@ -42,12 +50,18 @@ function to_sexpr(expr)::String
 
     iscall(expr) || return string(expr)
 
+    op = operation(expr)
+    if op === identity
+        arg = only(sorted_arguments(expr))
+        SymbolicUtils.isconst(arg) && return _num_to_sexpr(SymbolicUtils.unwrap_const(arg))
+        return to_sexpr(arg)
+    end
+
     if SymbolicUtils.ismul(expr)
         return _mul_to_sexpr(expr)
     elseif SymbolicUtils.isadd(expr)
         return _add_to_sexpr(expr)
     else
-        op = operation(expr)
         args = sorted_arguments(expr)
         return "($(nameof(op)) $(join(map(to_sexpr, args), " ")))"
     end

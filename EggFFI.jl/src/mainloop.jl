@@ -19,8 +19,10 @@ function rewrite_variations(expr::Num, vars::Dict{String, Num}; warn::Bool = tru
 
     ptr = egraph_create(sexpr_str)
     egraph_saturate!(ptr)
-    if warn && egraph_unsound(ptr)
-        @warn "unsoundness detected in the egraph" expr=expr
+    if egraph_unsound(ptr)
+        warn && @warn "unsoundness detected in the egraph, discarding extraction" expr=expr
+        egraph_destroy(ptr)
+        return Num[]
     end
     canonical_root = egraph_find(ptr, egraph_root_id(ptr))
     enode_strs = egraph_eclass_enodes(ptr, canonical_root)
@@ -86,8 +88,14 @@ function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; w
     end
 
     egraph_saturate!(ptr)
-    if warn && egraph_unsound(ptr)
-        @warn "unsoundness detected in the egraph" exprs=exprs
+    if egraph_unsound(ptr)
+        warn && @warn "unsoundness detected in the egraph, discarding extraction" exprs=exprs
+        empty_result = [Num[] for _ in exprs]
+        if keep_alive
+            return empty_result, ptr
+        end
+        egraph_destroy(ptr)
+        return empty_result
     end
 
     results = Vector{Num}[]
@@ -102,7 +110,7 @@ function rewrite_variations_batch(exprs::Vector{Num}, vars::Dict{String, Num}; w
         for s in egraph_eclass_enodes(ptr, canonical)
             try
                 push!(variations, from_sexpr(s, vars))
-            # please look in this , this is temp ig , due to Rival ops and our ops diff 
+            # please look in this , this is temp ig , due to Rival ops and our ops diff
             catch e
                 e isa KeyError || @warn "unexpected conversion failure" enode=s exception=e
             end
@@ -155,7 +163,12 @@ function run_iteration!(table::AltTable, vars; dlog::Union{Nothing, DerivationLo
         for (parent_expr, vs) in zip(pending_exprs, variations_per_alt)
             parent_key = to_sexpr(parent_expr)
             for v in vs
-                child_key = to_sexpr(v)
+                child_key = try
+                    to_sexpr(v)
+                catch e
+                    e isa ExactInfinityError || rethrow()
+                    continue
+                end
                 if child_key != dlog.root && !haskey(dlog.parent, child_key)
                     dlog.parent[child_key] = parent_key
                     dlog.kind[child_key] = :rewrite
@@ -172,7 +185,12 @@ function run_iteration!(table::AltTable, vars; dlog::Union{Nothing, DerivationLo
             if dlog !== nothing
                 parent_key = to_sexpr(expr)
                 for c in taylor_candidates_expr
-                    child_key = to_sexpr(c)
+                    child_key = try
+                        to_sexpr(c)
+                    catch e
+                        e isa ExactInfinityError || rethrow()
+                        continue
+                    end
                     if child_key != dlog.root && !haskey(dlog.parent, child_key)
                         dlog.parent[child_key] = parent_key
                         dlog.kind[child_key] = :taylor

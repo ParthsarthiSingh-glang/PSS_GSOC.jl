@@ -29,6 +29,7 @@ function is_odd_denom(tree)::Bool
     tree isa AbstractString && return false
     op, args = tree
     (op == "/" && length(args) == 2) || return false
+    args[2] isa AbstractString || return false
     denom = tryparse(BigInt, args[2])
     return denom !== nothing && isodd(denom)
 end
