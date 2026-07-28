@@ -1,5 +1,5 @@
 [package]
-name = "egg-julia-ffi"
+name = "egg-jerbie"
 version = "0.1.0"
 edition = "2021"
 

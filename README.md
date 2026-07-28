@@ -23,7 +23,7 @@ Jerbie.jl/
 │   ├── fpcore_bench.jl
 │   └── compare_herbie.jl
 │
-egg-julia-ffi/
+egg-jerbie/
 ├── src/
 │   ├── lib.rs
 │   ├── herbie_rules.rs
@@ -65,9 +65,9 @@ run_improve_with_report(expr, [x])
 
 ## Quick Start
 ### 1. Build the Rust Backend
-Compile the `egg-julia-ffi` Rust library:
+Compile the `egg-jerbie` Rust library:
 ```bash
-cd egg-julia-ffi
+cd egg-jerbie
 cargo build --release
 cd ..
 ```

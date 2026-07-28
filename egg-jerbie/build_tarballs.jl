@@ -9,7 +9,7 @@ sources = [
 ]
 
 script = raw"""
-cd $WORKSPACE/srcdir/Jerbie.jl/egg-julia-ffi
+cd $WORKSPACE/srcdir/Jerbie.jl/egg-jerbie
 
 rm -rf rival3
 cp -r $WORKSPACE/srcdir/rival3 ./rival3
