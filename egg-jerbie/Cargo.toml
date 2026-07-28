@@ -14,7 +14,7 @@ num-bigint = "0.4"
 num-integer = "0.1"
 num-traits = "0.2"
 log = "0.4"
-rival3 = { path = "rival3" }
+rival3 = { git = "https://github.com/herbie-fp/rival3.git", rev = "58cb38e2cbad842a024fe9ef47cd581618ca20f2" }
 rug = { version = "1.28", features = ["float"] }
 rand = "0.9"
 
