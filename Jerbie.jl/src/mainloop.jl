@@ -261,8 +261,9 @@ end
 
 """
 function run_improve!(expr::Num, vars = Symbolics.get_variables(expr); n::Int = 256)::Num
+    pre = preprocess_expr(expr, vars; n = n)
     ctx = sample_context(expr, vars; n = n)
-    table = make_alt_table(ctx, expr, vars)
+    table = make_alt_table(ctx, pre, vars)
     run_loop!(table, vars)
     return extract!(table, vars)
 end
@@ -349,6 +350,8 @@ function print_derivation(steps::Vector{DerivationStep})
                 tag = isempty(rules) ? "" : "   [" * join(rules, ", ") * "]"
                 println("    ", j, ": ", line, tag)
             end
+        elseif s.kind == :preprocess
+            println("    (even/odd preprocessing substitution, no rule-level proof)")
         else
             println("    (taylor series expansion, no rule-level proof)")
         end
@@ -389,8 +392,15 @@ function run_improve_with_report(expr::Num, vars = Symbolics.get_variables(expr)
     train_ctx = SampleContext(sampled.train.points, sampled.train.values)
     test_ctx = SampleContext(sampled.test.points, sampled.test.values)
 
-    table = make_alt_table(train_ctx, expr, vars)
+    pre = preprocess_expr(expr, vars; n = n_train)
+
+    table = make_alt_table(train_ctx, pre, vars)
     dlog = DerivationLog(to_sexpr(expr))
+    pre_key = to_sexpr(pre)
+    if pre_key != dlog.root
+        dlog.parent[pre_key] = dlog.root
+        dlog.kind[pre_key] = :preprocess
+    end
     run_loop!(table, vars; dlog)
     alternatives = extract_top!(table, vars; k = n_alts)
     winner = first(alternatives)
