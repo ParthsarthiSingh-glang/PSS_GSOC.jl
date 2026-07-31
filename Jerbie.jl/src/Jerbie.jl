@@ -4,19 +4,15 @@ using TermInterface
 using Symbolics
 using SymbolicUtils
 
-# compile-preprocessing - fabs/copysign must be registered as a symbolic function so 
-# to_sexpr's nameof(operation(expr)) produces "fabs"/"copysign" matching
-# MathLang node names.
 
-import Base: fma, muladd, copysign
+import Base: fma, muladd
 @register_symbolic fabs(x::Real)
-@register_symbolic copysign(x::Real, y::Real)
 @register_symbolic fma(x::Real, y::Real, z::Real)
 @register_symbolic muladd(x::Real, y::Real, z::Real)
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(
-    @__DIR__, "..", "..", "egg-julia-ffi", "target", "release", "jerbie")
+    @__DIR__, "..", "..", "egg-jerbie", "target", "release", "jerbie")
 
 include("converter.jl")
 include("sampling.jl")
@@ -143,28 +139,28 @@ function egraph_destroy(ptr::Ptr{Cvoid})
 end
 
 """
-    optimize_expr(expr, vars::Dict{String,Num}; warn=true, loop=false, n=256) -> Num
+    optimize_expr(expr, vars=Symbolics.get_variables(expr);
+                  n_train::Int=256, n_test::Int=8000, n_alts::Int=3)
+        -> (alternatives, start_score, end_score)
 
 """
-function optimize_expr(expr, vars::Dict{String, Num}; warn::Bool = true, loop::Bool = false, n::Int = 256)::Num
-    if loop
-        return run_improve!(expr, collect(values(vars)); n = n)
-    end
-    s = to_sexpr(expr)
-    ptr = egraph_create(s)
-    egraph_saturate!(ptr)
-    reason = egraph_stop_reason(ptr)
-    if warn && reason !== :Saturated
-        @warn "egraph did not fully saturate" stop_reason=reason expr=expr
-    end
-    res = egraph_extract(ptr)
-    egraph_destroy(ptr)
-    return from_sexpr(res, vars)
-end
+function optimize_expr(expr, vars = Symbolics.get_variables(expr);
+                        n_train::Int = 256, n_test::Int = 8000, n_alts::Int = 3)
+    report = run_improve_with_report(expr, vars; n_train, n_test, n_alts)
+    result = (alternatives = report.alternatives,
+              start_score  = start_score(report),
+              end_score    = end_score(report))
 
-function optimize_expr(expr; warn::Bool = true, loop::Bool = false, n::Int = 256)::Num
-    vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
-    return optimize_expr(expr, vars; warn, loop, n)
+    println("*"^69)
+    println("input: ", expr)
+    println("alternatives:")
+    for (i, a) in enumerate(result.alternatives)
+        println("  [$i] ", a)
+    end
+    println("start_score (bits-of-error, original): ", result.start_score)
+    println("end_score   (bits-of-error, winner):    ", result.end_score)
+
+    return result
 end
 
 """
@@ -206,6 +202,11 @@ function find_preprocessing(expr)
 
     egraph_saturate!(ptr)
 
+    if egraph_unsound(ptr)
+        egraph_destroy(ptr)
+        return Tuple{Symbol, Any}[]
+    end
+
     canon0 = egraph_find(ptr, root0)
     held = Tuple{Symbol, Any}[]
     for (label, v, id) in tagged_ids
@@ -225,7 +226,7 @@ function compile_preprocessing(expr, label::Symbol, v)
         return substitute(expr, Dict(v => fabs(v)))
     elseif label == :negabs
         substituted = substitute(expr, Dict(v => fabs(v)))
-        return copysign(1.0, v) * substituted
+        return copysign(Num(1.0), v) * substituted
     else
         error("compile_preprocessing: unknown label $label")
     end

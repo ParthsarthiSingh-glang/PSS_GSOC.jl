@@ -551,7 +551,7 @@ pub fn herbie_rules() -> Vec<Rewrite<MathLang, ConstantFold>> {
     rewrite!("1-exp"; "1" => "(exp 0)"),             
     rewrite!("e-exp-1"; "E" => "(exp 1)"),           
     rewrite!("pow1"; "?a" => "(^ ?a 1)"),            
-    rewrite!("pow-base-0"; "(^ 0 ?a)" => "0"),       
+    // rewrite!("pow-base-0"; "(^ 0 ?a)" => "0"), // overlaps unpow0 at (^ 0 0), unions 0 with 1
     rewrite!("sinh-0-rev"; "0" => "(sinh 0)"),       
     rewrite!("cosh-0-rev"; "1" => "(cosh 0)"),       
 
