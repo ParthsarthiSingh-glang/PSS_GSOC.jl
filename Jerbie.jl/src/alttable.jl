@@ -167,7 +167,15 @@ end
 Scores a batch of NEW candidate expressions not yet in the table .
 """
 function atab_eval_altns(table::AltTable, candidates::Vector{Num}, vars)
-    errss = [points_errors(c, vars, table.pcontext) for c in candidates]
+    n_points = length(table.pcontext.points)
+    errss = Vector{Vector{Float64}}(undef, length(candidates))
+    for (i, c) in enumerate(candidates)
+        errss[i] = try
+            points_errors(c, vars, table.pcontext)
+        catch
+            fill(64.0, n_points)
+        end
+    end
     costs = Float64[]
     for c in candidates
         cost = try

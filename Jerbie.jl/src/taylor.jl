@@ -87,11 +87,123 @@ function fold_roots(expr::Num)::Num
     return Num(Symbolics.substitute(expr, subs))
 end
 
+function _jerbie_pi_multiple(t)
+    t == "PI" && return 1
+    t isa AbstractString && return nothing
+    op, args = t
+    if op == "*" && length(args) == 2
+        a, b = args
+        an = a isa AbstractString ? _leaf_to_number(a) : nothing
+        an !== nothing && b == "PI" && return an
+        bn = b isa AbstractString ? _leaf_to_number(b) : nothing
+        bn !== nothing && a == "PI" && return bn
+    elseif op == "/" && length(args) == 2
+        a, b = args
+        if a == "PI"
+            bn = b isa AbstractString ? _leaf_to_number(b) : nothing
+            bn !== nothing && return 1 // bn
+        end
+    end
+    return nothing
+end
+
+function _jerbie_reduce_tree(tree)
+    tree isa AbstractString && return tree
+    op, raw_args = tree
+    args = Any[_jerbie_reduce_tree(a) for a in raw_args]
+    argn(i) = args[i] isa AbstractString ? _leaf_to_number(args[i]) : nothing
+
+    if length(args) == 1
+        a1n = argn(1)
+        if a1n !== nothing
+            op == "exp" && a1n == 0 && return "1"
+            op == "log" && a1n == 1 && return "0"
+            op == "sin" && a1n == 0 && return "0"
+            op == "cos" && a1n == 0 && return "1"
+            op == "tan" && a1n == 0 && return "0"
+            op == "sinh" && a1n == 0 && return "0"
+            op == "cosh" && a1n == 0 && return "1"
+            op == "exp" && a1n == 1 && return "E"
+        end
+        args[1] == "E" && op == "log" && return "1"
+
+        pm = _jerbie_pi_multiple(args[1])
+        if pm !== nothing
+            op == "sin" && pm == 1 && return "0"
+            op == "cos" && pm == 1 && return "-1"
+            op == "tan" && pm == 1 && return "0"
+            op == "cos" && pm == 1 // 6 && return ("/", [("sqrt", ["3"]), "2"])
+            op == "tan" && pm == 1 // 3 && return ("sqrt", ["3"])
+            op == "tan" && pm == 1 // 4 && return "1"
+            op == "cos" && pm == 1 // 2 && return "0"
+            op == "tan" && pm == 1 // 6 && return ("/", ["1", ("sqrt", ["3"])])
+            op == "sin" && pm == 1 // 3 && return ("/", [("sqrt", ["3"]), "2"])
+            op == "sin" && pm == 1 // 6 && return ("/", ["1", "2"])
+            op == "sin" && pm == 1 // 4 && return ("/", [("sqrt", ["2"]), "2"])
+            op == "sin" && pm == 1 // 2 && return "1"
+            op == "cos" && pm == 1 // 3 && return ("/", ["1", "2"])
+            op == "cos" && pm == 1 // 4 && return ("/", [("sqrt", ["2"]), "2"])
+        end
+
+        if !(args[1] isa AbstractString)
+            inner_op, inner_args = args[1]
+            if length(inner_args) == 1
+                x = inner_args[1]
+                (op, inner_op) in (("tanh", "atanh"), ("cosh", "acosh"), ("sinh", "asinh"),
+                                   ("acos", "cos"), ("asin", "sin"), ("atan", "tan"),
+                                   ("tan", "atan"), ("cos", "acos"), ("sin", "asin"),
+                                   ("log", "exp"), ("exp", "log")) && return x
+            end
+        end
+
+        if op == "cbrt" && !(args[1] isa AbstractString)
+            aop, aargs = args[1]
+            if aop == "pow" && length(aargs) == 2
+                bexp = aargs[2] isa AbstractString ? _leaf_to_number(aargs[2]) : nothing
+                bexp == 3 && return aargs[1]
+            end
+        end
+        if op == "exp" && !(args[1] isa AbstractString)
+            aop, aargs = args[1]
+            if aop == "*" && length(aargs) == 2
+                for (c, l) in ((aargs[1], aargs[2]), (aargs[2], aargs[1]))
+                    if !(l isa AbstractString)
+                        lop, largs = l
+                        lop == "log" && length(largs) == 1 && return ("pow", [largs[1], c])
+                    end
+                end
+            end
+        end
+    elseif length(args) == 2
+        if op == "pow"
+            e = argn(2)
+            e == 1 && return args[1]
+            if !(args[1] isa AbstractString)
+                bop, bargs = args[1]
+                bop == "cbrt" && length(bargs) == 1 && e == 3 && return bargs[1]
+            end
+        end
+    end
+
+    return (op, args)
+end
+
+function _jerbie_reduce(x::Num)::Num
+    try
+        tree = parse_sexpr(to_sexpr(x))
+        folded = _jerbie_reduce_tree(tree)
+        vars = Dict{String, Num}(name => Num(Symbolics.variable(Symbol(name))) for name in _tree_symbols(folded))
+        return build_expr(folded, vars)
+    catch
+        return x
+    end
+end
+
 # series-ref
 function series_ref(s::TSeries, n::Int)::Num
     for i in length(s.cache):n
         fetch = j -> s.cache[j]
-        raw = fold_roots(Num(simplify(s.builder(fetch, i))))
+        raw = fold_roots(_jerbie_reduce(Num(simplify(s.builder(fetch, i)))))
         s.cache[i] = Num(to_bigInt(Symbolics.unwrap(raw)))
     end
     return s.cache[n]
@@ -622,7 +734,7 @@ end
 function make_monomial(var, power::Int)::Num
     power == 0 && return Num(1)
     power == 1 && return var
-    power == -1 && return 1 / var
+    power < 0 && return 1 / var^(-power)
     return var^power
 end
 

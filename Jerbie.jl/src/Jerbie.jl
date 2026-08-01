@@ -6,7 +6,10 @@ using SymbolicUtils
 
 
 import Base: fma, muladd
+import NaNMath
+fabs(x::Real) = abs(x)
 @register_symbolic fabs(x::Real)
+NaNMath.pow(x::Integer, y::Integer) = NaNMath.pow(float(x), y)
 @register_symbolic fma(x::Real, y::Real, z::Real)
 @register_symbolic muladd(x::Real, y::Real, z::Real)
 
