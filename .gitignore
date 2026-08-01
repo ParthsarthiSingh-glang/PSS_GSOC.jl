@@ -14,7 +14,6 @@ Manifest.toml
 # compare_herbie.jl generated output (regenerated every run, not source)
 Jerbie.jl/test/single_var_corpus.fpcore
 Jerbie.jl/test/herbie_output.fpcore
-Jerbie.jl/test/comparison_results.txt
 
 # local-only Herbie comparison harness (not tracked in the repo)
 Jerbie.jl/test/compare_herbie.jl
