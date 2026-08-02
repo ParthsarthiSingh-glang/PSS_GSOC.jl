@@ -19,3 +19,6 @@ Jerbie.jl/test/herbie_output.fpcore
 Jerbie.jl/test/compare_herbie.jl
 Jerbie.jl/test/isolated_worker.jl
 Jerbie.jl/test/worker_core.jl
+
+# local-only Herbie cross-check tool
+Jerbie.jl/test/check_on_herbie.jl
