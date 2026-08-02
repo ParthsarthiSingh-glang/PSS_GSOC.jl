@@ -409,7 +409,7 @@ function taylor_fabs(var, term::TSeries)::Union{TSeries,Nothing}
         return normalized
     elseif isodd(offset)
         sign_factor = a0_val < 0 ? -1 : 1
-        scale_factor = abs(var) * sign_factor
+        scale_factor = fabs(var) * sign_factor
         new_offset = offset + 1
         return make_series(new_offset,
             (fetch, n) -> n == 0 ? scale_factor : series_ref(normalized, n + (new_offset - offset)))

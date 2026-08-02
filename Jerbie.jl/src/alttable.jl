@@ -7,7 +7,7 @@ cost per op/node , we had same for each node/op
 """
 const HERBIE_OP_COST = Dict{String, Float64}(
     "+" => 0.200, "-" => 0.200, "*" => 0.250, "/" => 0.350, "^" => 2.000,
-    "neg" => 0.125, "sqrt" => 0.250, "fabs" => 0.125, "abs" => 0.125,
+    "neg" => 0.125, "sqrt" => 0.250, "fabs" => 0.125,
     "ceil" => 0.250, "floor" => 0.300, "round" => 0.850, "log" => 0.750, "cbrt" => 2.000,
     "sin" => 4.200, "cos" => 4.200, "tan" => 4.650,
     "asin" => 0.500, "acos" => 0.500, "atan" => 1.100,

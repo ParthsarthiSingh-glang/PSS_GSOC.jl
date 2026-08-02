@@ -322,7 +322,7 @@ pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };
     let expr = eg.egraph.id_to_expr(eg.root);
     let runner = Runner::default()
-        .with_node_limit(10000)
+        .with_node_limit(4000)
         .with_hook(|r: &mut Runner<MathLang, ConstantFold>| {
            // eprintln!("[hook] iter={} nodes={} unsound={}", r.iterations.len(), r.egraph.total_size(), r.egraph.analysis.unsound.load(Ordering::SeqCst));
             if r.egraph.analysis.unsound.load(Ordering::SeqCst) {
