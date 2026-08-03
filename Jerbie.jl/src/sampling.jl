@@ -148,8 +148,7 @@ function fast_eval(expr, vars)
     head_expr = Expr(:tuple)
     append!(head_expr.args, arg_syms)
     fn_expr = Expr(:->, head_expr, body)
-    f = eval(fn_expr)
-    return (args...) -> Base.invokelatest(f, args...)
+    return @RuntimeGeneratedFunction(fn_expr)
 end
 
 """
