@@ -145,7 +145,9 @@ function fast_eval(expr, vars)
     arg_syms = [Symbol("v", i) for i in eachindex(varnames)]
     var_syms = Dict{String,Symbol}(varnames[i] => arg_syms[i] for i in eachindex(varnames))
     body = _tree_to_expr(tree, var_syms)
-    fn_expr = Expr(:->, Expr(:tuple, arg_syms...), body)
+    head_expr = Expr(:tuple)
+    append!(head_expr.args, arg_syms)
+    fn_expr = Expr(:->, head_expr, body)
     f = eval(fn_expr)
     return (args...) -> Base.invokelatest(f, args...)
 end
