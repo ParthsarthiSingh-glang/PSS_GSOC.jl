@@ -1,9 +1,19 @@
+"""
+    TSeries
+
+Lazy, cached Taylor series: an `offset` plus a per-index `builder` function.
+"""
 mutable struct TSeries
     offset::Int
-    builder::Function  
+    builder::Function
     cache::Dict{Int,Num}
 end
 
+"""
+    make_series(offset::Int, builder::Function) -> TSeries
+
+Constructs a TSeries from an offset and per-index coefficient builder.
+"""
 make_series(offset::Int, builder::Function) = TSeries(offset, builder, Dict{Int,Num}())
 
 """
@@ -199,7 +209,11 @@ function _jerbie_reduce(x::Num)::Num
     end
 end
 
-# series-ref
+"""
+    series_ref(s::TSeries, n::Int) -> Num
+
+n-th coefficient of `s`, computed and cached on demand.
+"""
 function series_ref(s::TSeries, n::Int)::Num
     for i in length(s.cache):n
         fetch = j -> s.cache[j]
@@ -209,6 +223,11 @@ function series_ref(s::TSeries, n::Int)::Num
     return s.cache[n]
 end
 
+"""
+    series_function(s::TSeries) -> Function
+
+Wraps a TSeries as a plain `n -> coefficient` function.
+"""
 function series_function(s::TSeries)
     return n -> series_ref(s, n)
 end
@@ -220,19 +239,31 @@ Julia's factorial() throws OverflowError after n=20
 """
 safe_factorial(n::Integer) = n > 20 ? factorial(big(n)) : factorial(n)
 
-# zero-series
+"""
+    zero_series(s::TSeries) -> Function
+
+View of `s` reindexed so index 0 is its first (offset) term.
+"""
 function zero_series(s::TSeries)::Function
     return n -> n < -s.offset ? Num(0) : series_ref(s, n + s.offset)
 end
 
-# taylor-exact
+"""
+    taylor_exact(terms::Num...) -> TSeries
+
+Exact/finite series with the given literal Num coefficients.
+"""
 function taylor_exact(terms::Num...)::TSeries
     items = collect(terms)
     len = length(items)
     return make_series(0, (fetch, n) -> n < len ? items[n+1] : Num(0))
 end
 
-# first-nonzero-exp
+"""
+    first_nonzero_exp(f::Function) -> Int
+
+Lowest `n` with `f(n) != 0` (capped at 20).
+"""
 function first_nonzero_exp(f::Function)::Int
     n = 0
     while isequal(f(n), 0) && n < 20
@@ -241,14 +272,22 @@ function first_nonzero_exp(f::Function)::Int
     return n
 end
 
-# normalize-series
+"""
+    normalize_series(s::TSeries) -> TSeries
+
+Shifts `s` so its lowest nonzero term is at offset 0.
+"""
 function normalize_series(s::TSeries)::TSeries
     slack = first_nonzero_exp(series_function(s))
     slack == 0 && return s
     return make_series(s.offset - slack, (fetch, n) -> series_ref(s, n + slack))
 end
 
-# taylor-add
+"""
+    taylor_add(left::TSeries, right::TSeries) -> TSeries
+
+Sum of two Taylor series.
+"""
 function taylor_add(left::TSeries, right::TSeries)::TSeries
     target_offset = max(left.offset, right.offset)
     function align(offset, series)
@@ -261,12 +300,20 @@ function taylor_add(left::TSeries, right::TSeries)::TSeries
     return make_series(target_offset, (fetch, n) -> left_(n) + right_(n))
 end
 
-# taylor-negate
+"""
+    taylor_negate(term::TSeries) -> TSeries
+
+Negation of a Taylor series.
+"""
 function taylor_negate(term::TSeries)::TSeries
     return make_series(term.offset, (fetch, n) -> -series_ref(term, n))
 end
 
-# taylor-mult
+"""
+    taylor_mult(left::TSeries, right::TSeries) -> TSeries
+
+Cauchy product of two Taylor series.
+"""
 function taylor_mult(left::TSeries, right::TSeries)::TSeries
     offset = left.offset + right.offset
     function builder(fetch, n)
@@ -282,7 +329,11 @@ function taylor_mult(left::TSeries, right::TSeries)::TSeries
     return make_series(offset, builder)
 end
 
-# taylor-invert
+"""
+    taylor_invert(term::TSeries) -> TSeries
+
+Reciprocal (1/term) as a Taylor series.
+"""
 function taylor_invert(term::TSeries)::TSeries
     normalized = normalize_series(term)
     b = series_function(normalized)
@@ -293,7 +344,11 @@ function taylor_invert(term::TSeries)::TSeries
     return make_series(-normalized.offset, builder)
 end
 
-# taylor-quotient
+"""
+    taylor_quotient(num::TSeries, denom::TSeries) -> TSeries
+
+`num/denom` as a Taylor series.
+"""
 function taylor_quotient(num::TSeries, denom::TSeries)::TSeries
     nn = normalize_series(num)
     nd = normalize_series(denom)
@@ -307,7 +362,12 @@ function taylor_quotient(num::TSeries, denom::TSeries)::TSeries
     return make_series(nn.offset - nd.offset, builder)
 end
 
-# modulo-series
+"""
+    modulo_series(var, n::Int, s::TSeries) -> TSeries
+
+Reindexes `s` to only have nonzero terms at multiples of `n` (used by
+taylor_sqrt/taylor_cbrt).
+"""
 function modulo_series(var, n::Int, s::TSeries)::TSeries
     normalized = normalize_series(s)
     offset = normalized.offset
@@ -332,7 +392,11 @@ function modulo_series(var, n::Int, s::TSeries)::TSeries
     return make_series(offset_star, (fetch, i) -> coeffs_star(i))
 end
 
-# taylor-sqrt
+"""
+    taylor_sqrt(var, num::TSeries) -> TSeries
+
+`sqrt(num)` as a Taylor series.
+"""
 function taylor_sqrt(var, num::TSeries)::TSeries
     normalized = modulo_series(var, 2, num)
     offset_star = normalized.offset
@@ -376,6 +440,11 @@ function n_sum_to(num_slots::Int, target_sum::Int)::Vector{Vector{Int}}
     return n_sum_to_cache[key] = result
 end
 
+"""
+    taylor_cbrt(var, num::TSeries) -> TSeries
+
+`cbrt(num)` as a Taylor series.
+"""
 function taylor_cbrt(var, num::TSeries)::TSeries
     normalized = modulo_series(var, 3, num)
     offset_star = normalized.offset
@@ -393,7 +462,12 @@ function taylor_cbrt(var, num::TSeries)::TSeries
     return make_series(offset_star ÷ 3, builder)
 end
 
-# taylor-fabs 
+"""
+    taylor_fabs(var, term::TSeries) -> Union{TSeries, Nothing}
+
+`abs(term)` as a Taylor series, or `nothing` if the sign at 0 can't be
+determined.
+"""
 function taylor_fabs(var, term::TSeries)::Union{TSeries,Nothing}
     normalized = normalize_series(term)
     offset = normalized.offset
@@ -418,7 +492,11 @@ function taylor_fabs(var, term::TSeries)::Union{TSeries,Nothing}
     end
 end
 
-# taylor-pow (Russian peasant)
+"""
+    taylor_pow(coeffs::TSeries, n::Int) -> TSeries
+
+`coeffs^n` as a Taylor series (Russian-peasant exponentiation).
+"""
 function taylor_pow(coeffs::TSeries, n::Int)::TSeries
     n < 0 && return taylor_pow(taylor_invert(coeffs), -n)
     n == 0 && return taylor_exact(Num(1))
@@ -432,7 +510,12 @@ function taylor_pow(coeffs::TSeries, n::Int)::TSeries
     end
 end
 
-# all-partitions
+"""
+    all_partitions(n::Int, options::Vector{Int}) -> Vector{Vector{Tuple{Int,Int}}}
+
+Every way to write `n` as a sum of `count*k` for `k` in `options`, as
+`(count, k)` pairs.
+"""
 function all_partitions(n::Int, options::Vector{Int})::Vector{Vector{Tuple{Int,Int}}}
     isempty(options) && return n == 0 ? [Tuple{Int,Int}[]] : Vector{Tuple{Int,Int}}[]
     k = options[1]
@@ -452,7 +535,11 @@ function all_partitions(n::Int, options::Vector{Int})::Vector{Vector{Tuple{Int,I
     return result
 end
 
-# taylor-exp
+"""
+    taylor_exp(coeffs::Function) -> TSeries
+
+`exp(coeffs)` as a Taylor series.
+"""
 function taylor_exp(coeffs::Function)::TSeries
     function builder(fetch, n)
         n == 0 && return exp(coeffs(0))
@@ -472,7 +559,11 @@ function taylor_exp(coeffs::Function)::TSeries
     return make_series(0, builder)
 end
 
-# taylor-sin
+"""
+    taylor_sin(coeffs::Function) -> TSeries
+
+`sin(coeffs)` as a Taylor series (`coeffs(0)` assumed 0).
+"""
 function taylor_sin(coeffs::Function)::TSeries
     function builder(fetch, n)
         n == 0 && return Num(0)
@@ -494,7 +585,11 @@ function taylor_sin(coeffs::Function)::TSeries
     return make_series(0, builder)
 end
 
-# taylor-cos
+"""
+    taylor_cos(coeffs::Function) -> TSeries
+
+`cos(coeffs)` as a Taylor series (`coeffs(0)` assumed 0).
+"""
 function taylor_cos(coeffs::Function)::TSeries
     function builder(fetch, n)
         n == 0 && return Num(1)
@@ -564,6 +659,11 @@ function logcompute(i::Int)::Vector{Vector{Int}}
     return _log_cache[i] = logstep(logcompute(i - 1))
 end
 
+"""
+    taylor_log(var, arg::TSeries) -> TSeries
+
+`log(arg)` as a Taylor series.
+"""
 function taylor_log(var, arg::TSeries)::TSeries
     normalized = normalize_series(arg)
     shift = normalized.offset
@@ -598,6 +698,12 @@ function taylor_log(var, arg::TSeries)::TSeries
     return taylor_add(base, shift_term)
 end
 
+"""
+    expand_taylor(tree)
+
+Rewrites tan/cosh/sinh/tanh/asinh/acosh/atanh/pow into exp/log/sqrt/cbrt
+terms, ahead of Taylor expansion.
+"""
 function expand_taylor(tree)
     tree isa AbstractString && return tree
     op, raw_args = tree
@@ -661,6 +767,11 @@ function _tree_to_num(tree, var::Num)::Num
     return from_sexpr(_tree_to_string(tree), vars)
 end
 
+"""
+    taylor_series(var::Num, tree) -> TSeries
+
+Builds the Taylor series of `tree` in `var`, recursing over its operators.
+"""
 function taylor_series(var::Num, tree)::TSeries
     varname = string(var)
 
@@ -731,6 +842,11 @@ function taylor_series(var::Num, tree)::TSeries
     end
 end
 
+"""
+    make_monomial(var, power::Int) -> Num
+
+`var^power`, handling `power <= 0`.
+"""
 function make_monomial(var, power::Int)::Num
     power == 0 && return Num(1)
     power == 1 && return var
@@ -738,6 +854,11 @@ function make_monomial(var, power::Int)::Num
     return var^power
 end
 
+"""
+    make_horner(var, terms::Vector{Tuple{Num,Int}}, start::Int=0) -> Num
+
+Builds a Horner-form polynomial from `(coeff, power)` terms.
+"""
 function make_horner(var, terms::Vector{Tuple{Num,Int}}, start::Int=0)::Num
     isempty(terms) && return Num(0)
     c, n = terms[1]
@@ -745,6 +866,12 @@ function make_horner(var, terms::Vector{Tuple{Num,Int}}, start::Int=0)::Num
     return make_monomial(var, n - start) * (c + make_horner(var, terms[2:end], n))
 end
 
+"""
+    make_approximator(s::TSeries, orig_var::Num, finv::Function; iters::Int=5) -> Function
+
+Returns a closure that yields s's next nonzero term, as a growing Horner
+polynomial in `finv(orig_var)`, each call.
+"""
 function make_approximator(s::TSeries, orig_var::Num, finv::Function; iters::Int=5)
     result_var = finv(orig_var)
     terms = Tuple{Num,Int}[]
@@ -770,6 +897,8 @@ end
 """
     taylor_candidates(expr::Num, var::Num; max_candidates::Int=2) -> Vector{Num}
 
+Taylor-expansion candidates for `expr` around `var`, `var -> 1/var`, and
+`var -> -1/var`.
 """
 function taylor_candidates(expr::Num, var::Num; max_candidates::Int=2)::Vector{Num}
     candidates = Num[Num(0)]

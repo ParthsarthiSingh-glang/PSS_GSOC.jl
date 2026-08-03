@@ -59,6 +59,11 @@ export egraph_create, egraph_saturate!, egraph_stop_reason,
        make_approximator, taylor_candidates, taylor_variations,
        ExactInfinityError
 
+"""
+    egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer) -> String
+
+Arbitrary (not lowest-cost) s-expression for the eclass with the given id.
+"""
 function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
     raw = ccall((:egraph_id_to_expr, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, UInt32), ptr, id)
     result = unsafe_string(raw)
@@ -66,6 +71,11 @@ function egraph_id_to_expr(ptr::Ptr{Cvoid}, id::Integer)::String
     return result
 end
 
+"""
+    egraph_create(expr::String) -> Ptr{Cvoid}
+
+Creates a native e-graph from an s-expression string. Free with egraph_destroy.
+"""
 function egraph_create(expr::String)::Ptr{Cvoid}
     ccall((:egraph_create, LIBPATH), Ptr{Cvoid}, (Cstring,), expr)
 end
@@ -115,15 +125,32 @@ function egraph_unsound(ptr::Ptr{Cvoid})::Bool
     ccall((:egraph_unsound, LIBPATH), Bool, (Ptr{Cvoid},), ptr)
 end
 
+"""
+    egraph_saturate!(ptr::Ptr{Cvoid})
+
+Runs equality saturation on the e-graph (node-limited to 4000) until it
+saturates or hits a limit. Check egraph_stop_reason/egraph_unsound after.
+"""
 function egraph_saturate!(ptr::Ptr{Cvoid})
     ccall((:egraph_saturate, LIBPATH), Cvoid, (Ptr{Cvoid},), ptr)
 end
 
+"""
+    egraph_stop_reason(ptr::Ptr{Cvoid}) -> Symbol
+
+Why the last egraph_saturate! call stopped: :Saturated, :IterationLimit,
+:NodeLimit, :TimeLimit, or :Other.
+"""
 function egraph_stop_reason(ptr::Ptr{Cvoid})::Symbol
     code = ccall((:egraph_stop_reason, LIBPATH), UInt8, (Ptr{Cvoid},), ptr)
     return [:Saturated, :IterationLimit, :NodeLimit, :TimeLimit, :Other][code + 1]
 end
 
+"""
+    egraph_extract(ptr::Ptr{Cvoid}) -> String
+
+Lowest-cost expression from the root eclass, as an s-expression string.
+"""
 function egraph_extract(ptr::Ptr{Cvoid})::String
     raw = ccall((:egraph_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid},), ptr)
     result = unsafe_string(raw)
@@ -131,6 +158,11 @@ function egraph_extract(ptr::Ptr{Cvoid})::String
     return result
 end
 
+"""
+    egraph_pretty_extract(ptr::Ptr{Cvoid}; width::Integer=80) -> String
+
+Like egraph_extract, but pretty-printed and wrapped to `width` columns.
+"""
 function egraph_pretty_extract(ptr::Ptr{Cvoid}; width::Integer = 80)::String
     raw = ccall(
         (:egraph_pretty_extract, LIBPATH), Ptr{UInt8}, (Ptr{Cvoid}, UInt32), ptr, width)
@@ -139,6 +171,11 @@ function egraph_pretty_extract(ptr::Ptr{Cvoid}; width::Integer = 80)::String
     return result
 end
 
+"""
+    egraph_destroy(ptr::Ptr{Cvoid})
+
+Frees the native e-graph created by egraph_create. `ptr` must not be reused.
+"""
 function egraph_destroy(ptr::Ptr{Cvoid})
     ccall((:egraph_destroy, LIBPATH), Cvoid, (Ptr{Cvoid},), ptr)
 end
@@ -148,6 +185,9 @@ end
                   n_train::Int=256, n_test::Int=8000, n_alts::Int=3, verbose::Bool=true)
         -> (alternatives, start_score, end_score, test_context)
 
+Main entry point: searches for accuracy-improving rewrites of `expr` and
+scores them (bits-of-error, lower is better) against held-out sample points.
+`verbose=false` suppresses the printed summary.
 """
 function optimize_expr(expr, vars = Symbolics.get_variables(expr);
                         n_train::Int = 256, n_test::Int = 8000, n_alts::Int = 3,
@@ -175,9 +215,8 @@ end
 """
     generate_candidates(expr) -> Vector{Tuple{Symbol, Any, Any}}
 
-    attached rather than just the candidate expression:
-      (:abs, v, cand)    = expr with v => -v substituted
-      (:negabs, v, cand) = -expr with v => -v substituted
+Per variable v, generates (:abs, v, expr with v=>-v) and (:negabs, v, -expr
+with v=>-v) candidates for preprocessing.
 """
 function generate_candidates(expr)
     vars = Symbolics.get_variables(expr)
@@ -192,8 +231,8 @@ end
 """
     find_preprocessing(expr) -> Vector{Tuple{Symbol, Any}}
 
-    generates even/odd candidates, inserts the original + every candidate into ONE
-    shared egraph as separate roots, saturates once .
+Which generate_candidates substitutions are provably identity-preserving
+(same eclass as the original after one shared saturation).
 """
 function find_preprocessing(expr)
     candidates = generate_candidates(expr)
@@ -229,6 +268,7 @@ end
 """
     compile_preprocessing(expr, label::Symbol, v) -> new_expr
 
+Applies one held (label, v) substitution from find_preprocessing to expr.
 """
 function compile_preprocessing(expr, label::Symbol, v)
     if label == :abs
@@ -243,7 +283,8 @@ end
 
 """
     apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}}) -> new_expr
-    
+
+Applies every held substitution to expr, in reverse order.
 """
 function apply_preprocessing(expr, held::Vector{Tuple{Symbol,Any}})
     for (label, v) in reverse(held)
@@ -268,36 +309,76 @@ end
 
 # ==================== UTILITY FUNCTIONS ====================
 
+"""
+    egraph_size(ptr::Ptr{Cvoid}) -> UInt32
+
+Number of eclasses in the e-graph.
+"""
 function egraph_size(ptr::Ptr{Cvoid})::UInt32
     ccall((:egraph_size, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
 end
 
+"""
+    egraph_eclass_size(ptr::Ptr{Cvoid}, id::Integer) -> UInt32
+
+Number of enodes in the eclass with the given id.
+"""
 function egraph_eclass_size(ptr::Ptr{Cvoid}, id::Integer)::UInt32
     ccall((:egraph_eclass_size, LIBPATH), UInt32, (Ptr{Cvoid}, UInt32), ptr, id)
 end
 
+"""
+    egraph_find(ptr::Ptr{Cvoid}, id::Integer) -> UInt32
+
+Canonical eclass id for `id` (union-find find).
+"""
 function egraph_find(ptr::Ptr{Cvoid}, id::Integer)::UInt32
     ccall((:egraph_find, LIBPATH), UInt32, (Ptr{Cvoid}, UInt32), ptr, id)
 end
 
+"""
+    egraph_root_id(ptr::Ptr{Cvoid}) -> UInt32
+
+Id of the tracked root eclass.
+"""
 function egraph_root_id(ptr::Ptr{Cvoid})::UInt32
     ccall((:egraph_root_id, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
 end
 
+"""
+    egraph_total_size(ptr::Ptr{Cvoid}) -> UInt32
+
+Total number of enodes across all eclasses.
+"""
 function egraph_total_size(ptr::Ptr{Cvoid})::UInt32
     ccall((:egraph_total_size, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
 end
 
+"""
+    egraph_contains(ptr::Ptr{Cvoid}, expr) -> Union{UInt32, Nothing}
+
+Eclass id of `expr` if present in the e-graph, else `nothing`.
+"""
 function egraph_contains(ptr::Ptr{Cvoid}, expr)::Union{UInt32, Nothing}
     s = to_sexpr(expr)
     raw = ccall((:egraph_contains, LIBPATH), UInt32, (Ptr{Cvoid}, Cstring), ptr, s)
     raw == typemax(UInt32) ? nothing : raw
 end
 
+"""
+    egraph_num_classes(ptr::Ptr{Cvoid}) -> UInt32
+
+Number of canonical eclasses after union-find merges.
+"""
 function egraph_num_classes(ptr::Ptr{Cvoid})::UInt32
     ccall((:egraph_num_classes, LIBPATH), UInt32, (Ptr{Cvoid},), ptr)
 end
 
+"""
+    egraph_get_eclasses(ptr::Ptr{Cvoid}) -> Vector{UInt32}
+
+Sorted ids of every canonical eclass.
+"""
 function egraph_get_eclasses(ptr::Ptr{Cvoid})::Vector{UInt32}
     n = egraph_num_classes(ptr)
     buf = Vector{UInt32}(undef, n)

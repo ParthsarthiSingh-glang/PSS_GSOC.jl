@@ -82,6 +82,7 @@ end
 """
     make_alt_table(pcontext, initial_expr::Num, vars) -> AltTable
 
+Builds a fresh AltTable containing just the initial expression.
 """
 function make_alt_table(pcontext::SampleContext, initial_expr::Num, vars)::AltTable
     key = to_sexpr(initial_expr)
@@ -103,6 +104,7 @@ end
 """
     make_alt_table(pcontext, initial_expr::Num) -> AltTable
 
+Like the 3-arg method, inferring vars from `initial_expr`.
 """
 function make_alt_table(pcontext::SampleContext, initial_expr::Num)::AltTable
     return make_alt_table(pcontext, initial_expr, Symbolics.get_variables(initial_expr))
@@ -111,6 +113,7 @@ end
 """
     order_altns(keys) -> Vector{String}
 
+Sorted alt keys, for deterministic ordering.
 """
 order_altns(ks) = sort(collect(ks))
 
@@ -217,7 +220,7 @@ end
 """
     invert_index(point_idx_to_alts::Vector{Vector{ParetoPoint{String}}}) -> Dict{String, Vector{Int}}
 
-Rebuilds the alt .
+Rebuilds the alt-key -> winning-point-indices index from the per-point curves.
 """
 function invert_index(point_idx_to_alts::Vector{Vector{ParetoPoint{String}}})::Dict{String, Vector{Int}}
     alt_to_points = Dict{String, Vector{Int}}()
@@ -231,6 +234,11 @@ function invert_index(point_idx_to_alts::Vector{Vector{ParetoPoint{String}}})::D
     return alt_to_points
 end
 
+"""
+    CoverageGroup
+
+Alt keys that jointly cover one point, for the atab_prune set-cover pass.
+"""
 const CoverageGroup = Vector{Union{Nothing, String}}
 
 """
@@ -296,6 +304,8 @@ end
 """
     removability_lt(table::AltTable, alt1::String, alt2::String) -> Bool
 
+Orders alts by which is safer to prune first: not-yet-done, fewer wins, and
+higher cost are removed before done/more-wins/cheaper ones.
 """
 function removability_lt(table::AltTable, alt1::String, alt2::String)::Bool
     alt1_done = table.alt_to_done[alt1]
@@ -328,6 +338,7 @@ end
 """
     atab_remove!(table::AltTable, altns::Vector{String}) -> AltTable
 
+Drops the given alt keys from the table entirely.
 """
 function atab_remove!(table::AltTable, altns::Vector{String})::AltTable
     isempty(altns) && return table
@@ -348,6 +359,7 @@ end
 """
     atab_prune!(table::AltTable) -> AltTable
 
+Greedily removes alts that aren't needed to cover any point (set-cover pass).
 """
 function atab_prune!(table::AltTable)::AltTable
     sc = atab_set_cover(table)
@@ -367,6 +379,7 @@ end
 """
     atab_add_altns!(table::AltTable, candidates::Vector{Num}, errss::Vector{Vector{Float64}}, costs::Vector{Float64}) -> AltTable
 
+Adds a batch of new candidates, then re-prunes the table.
 """
 function atab_add_altns!(table::AltTable, candidates::Vector{Num},
                           errss::Vector{Vector{Float64}}, costs::Vector{Float64})::AltTable
@@ -391,6 +404,7 @@ end
 """
     atab_min_errors(table::AltTable) -> Vector{Float64}
 
+Best (lowest) error at each sample point, across all alts.
 """
 function atab_min_errors(table::AltTable)::Vector{Float64}
     return [first(curve).error for curve in table.point_idx_to_alts]

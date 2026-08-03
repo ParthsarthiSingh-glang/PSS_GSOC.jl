@@ -138,6 +138,8 @@ end
 """
     fast_eval(expr, vars) -> Function
 
+Compiles expr into a fast numeric Float64 function of `vars`, NaN-safe (via
+NaNMath) instead of throwing on invalid domains.
 """
 function fast_eval(expr, vars)
     tree = parse_sexpr(to_sexpr(Num(expr)))
