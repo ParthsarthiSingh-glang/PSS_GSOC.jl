@@ -7,6 +7,8 @@ using SymbolicUtils
 
 import Base: fma, muladd
 import NaNMath
+using RuntimeGeneratedFunctions
+RuntimeGeneratedFunctions.init(@__MODULE__)
 fabs(x::Real) = abs(x)
 @register_symbolic fabs(x::Real)
 NaNMath.pow(x::Integer, y::Integer) = NaNMath.pow(float(x), y)
@@ -143,25 +145,29 @@ end
 
 """
     optimize_expr(expr, vars=Symbolics.get_variables(expr);
-                  n_train::Int=256, n_test::Int=8000, n_alts::Int=3)
-        -> (alternatives, start_score, end_score)
+                  n_train::Int=256, n_test::Int=8000, n_alts::Int=3, verbose::Bool=true)
+        -> (alternatives, start_score, end_score, test_context)
 
 """
 function optimize_expr(expr, vars = Symbolics.get_variables(expr);
-                        n_train::Int = 256, n_test::Int = 8000, n_alts::Int = 3)
+                        n_train::Int = 256, n_test::Int = 8000, n_alts::Int = 3,
+                        verbose::Bool = true)
     report = run_improve_with_report(expr, vars; n_train, n_test, n_alts)
     result = (alternatives = report.alternatives,
               start_score  = start_score(report),
-              end_score    = end_score(report))
+              end_score    = end_score(report),
+              test_context = report.test_context)
 
-    println("*"^69)
-    println("input: ", expr)
-    println("alternatives:")
-    for (i, a) in enumerate(result.alternatives)
-        println("  [$i] ", a)
+    if verbose
+        println("*"^69)
+        println("input: ", expr)
+        println("alternatives:")
+        for (i, a) in enumerate(result.alternatives)
+            println("  [$i] ", a)
+        end
+        println("start_score (bits-of-error, original): ", result.start_score)
+        println("end_score   (bits-of-error, winner):    ", result.end_score)
     end
-    println("start_score (bits-of-error, original): ", result.start_score)
-    println("end_score   (bits-of-error, winner):    ", result.end_score)
 
     return result
 end
