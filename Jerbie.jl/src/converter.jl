@@ -172,13 +172,25 @@ function try_parse_rational(s::String)::Union{Rational{Int}, Rational{BigInt}, N
 end
 
 function _leaf_to_number(tree)::Union{Number, Nothing}
-    tree isa String || return nothing
-    vi = tryparse(Int, tree)
-    vi !== nothing && return vi
-    vr = try_parse_rational(tree)
-    vr !== nothing && return vr
-    vf = tryparse(Float64, tree)
-    vf !== nothing && return vf
+    if tree isa String
+        vi = tryparse(Int, tree)
+        vi !== nothing && return vi
+        vr = try_parse_rational(tree)
+        vr !== nothing && return vr
+        vf = tryparse(Float64, tree)
+        vf !== nothing && return vf
+        return nothing
+    end
+    op, args = tree
+    if op == "/" && length(args) == 2
+        p = _leaf_to_number(args[1])
+        q = _leaf_to_number(args[2])
+        (p isa Integer && q isa Integer && q != 0) && return p // q
+    end
+    if op == "neg" && length(args) == 1
+        n = _leaf_to_number(args[1])
+        n !== nothing && return -n
+    end
     return nothing
 end
 
