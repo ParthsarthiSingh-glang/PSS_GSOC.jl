@@ -10,4 +10,5 @@ makedocs(
     pages = pages
 )
 
-deploydocs(repo = "github.com/ParthsarthiSingh-glang/Jerbie.jl.git"; push_preview = true)
+deploydocs(repo = "github.com/ParthsarthiSingh-glang/Jerbie.jl.git";
+           devbranch = "taylor-numeric-fixes", push_preview = true)
