@@ -1,7 +1,6 @@
 #![recursion_limit = "256"]
 
 mod herbie_rules;
-mod my_rules;
 mod to_rival;
 mod discretization;
 mod domain_search;
