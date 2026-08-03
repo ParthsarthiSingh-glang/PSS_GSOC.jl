@@ -10,4 +10,4 @@ makedocs(
     pages = pages
 )
 
-deploydocs(repo = "github.com/JuliaSymbolics/Jerbie.jl.git"; push_preview = true)
+deploydocs(repo = "github.com/ParthsarthiSingh-glang/Jerbie.jl.git"; push_preview = true)
