@@ -4,7 +4,7 @@ name = "Jerbie"
 version = v"0.1.0"
 
 sources = [
-    GitSource("https://github.com/ParthsarthiSingh-glang/Jerbie.jl.git", "62b489f7d33765cfb11e3f6cd6b5b230f7ec4b11"),
+    GitSource("https://github.com/JuliaSymbolics/Jerbie.jl.git", "1ed69d016e66e716fa3c91505e549955a176c0be"),
 ]
 
 script = raw"""
