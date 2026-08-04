@@ -1,9 +1,19 @@
+"""
+    TSeries
+
+Lazy, cached Taylor series: an `offset` plus a per-index `builder` function.
+"""
 mutable struct TSeries
     offset::Int
-    builder::Function  
+    builder::Function
     cache::Dict{Int,Num}
 end
 
+"""
+    make_series(offset::Int, builder::Function) -> TSeries
+
+Constructs a TSeries from an offset and per-index coefficient builder.
+"""
 make_series(offset::Int, builder::Function) = TSeries(offset, builder, Dict{Int,Num}())
 
 """
@@ -87,16 +97,137 @@ function fold_roots(expr::Num)::Num
     return Num(Symbolics.substitute(expr, subs))
 end
 
-# series-ref
+function _jerbie_pi_multiple(t)
+    t == "PI" && return 1
+    t isa AbstractString && return nothing
+    op, args = t
+    if op == "*" && length(args) == 2
+        a, b = args
+        an = a isa AbstractString ? _leaf_to_number(a) : nothing
+        an !== nothing && b == "PI" && return an
+        bn = b isa AbstractString ? _leaf_to_number(b) : nothing
+        bn !== nothing && a == "PI" && return bn
+    elseif op == "/" && length(args) == 2
+        a, b = args
+        if a == "PI"
+            bn = b isa AbstractString ? _leaf_to_number(b) : nothing
+            bn !== nothing && return 1 // bn
+        end
+    end
+    return nothing
+end
+
+function _jerbie_reduce_tree(tree)
+    tree isa AbstractString && return tree
+    op, raw_args = tree
+    args = Any[_jerbie_reduce_tree(a) for a in raw_args]
+    argn(i) = args[i] isa AbstractString ? _leaf_to_number(args[i]) : nothing
+
+    if length(args) == 1
+        a1n = argn(1)
+        if a1n !== nothing
+            op == "exp" && a1n == 0 && return "1"
+            op == "log" && a1n == 1 && return "0"
+            op == "sin" && a1n == 0 && return "0"
+            op == "cos" && a1n == 0 && return "1"
+            op == "tan" && a1n == 0 && return "0"
+            op == "sinh" && a1n == 0 && return "0"
+            op == "cosh" && a1n == 0 && return "1"
+            op == "exp" && a1n == 1 && return "E"
+        end
+        args[1] == "E" && op == "log" && return "1"
+
+        pm = _jerbie_pi_multiple(args[1])
+        if pm !== nothing
+            op == "sin" && pm == 1 && return "0"
+            op == "cos" && pm == 1 && return "-1"
+            op == "tan" && pm == 1 && return "0"
+            op == "cos" && pm == 1 // 6 && return ("/", [("sqrt", ["3"]), "2"])
+            op == "tan" && pm == 1 // 3 && return ("sqrt", ["3"])
+            op == "tan" && pm == 1 // 4 && return "1"
+            op == "cos" && pm == 1 // 2 && return "0"
+            op == "tan" && pm == 1 // 6 && return ("/", ["1", ("sqrt", ["3"])])
+            op == "sin" && pm == 1 // 3 && return ("/", [("sqrt", ["3"]), "2"])
+            op == "sin" && pm == 1 // 6 && return ("/", ["1", "2"])
+            op == "sin" && pm == 1 // 4 && return ("/", [("sqrt", ["2"]), "2"])
+            op == "sin" && pm == 1 // 2 && return "1"
+            op == "cos" && pm == 1 // 3 && return ("/", ["1", "2"])
+            op == "cos" && pm == 1 // 4 && return ("/", [("sqrt", ["2"]), "2"])
+        end
+
+        if !(args[1] isa AbstractString)
+            inner_op, inner_args = args[1]
+            if length(inner_args) == 1
+                x = inner_args[1]
+                (op, inner_op) in (("tanh", "atanh"), ("cosh", "acosh"), ("sinh", "asinh"),
+                                   ("acos", "cos"), ("asin", "sin"), ("atan", "tan"),
+                                   ("tan", "atan"), ("cos", "acos"), ("sin", "asin"),
+                                   ("log", "exp"), ("exp", "log")) && return x
+            end
+        end
+
+        if op == "cbrt" && !(args[1] isa AbstractString)
+            aop, aargs = args[1]
+            if aop == "pow" && length(aargs) == 2
+                bexp = aargs[2] isa AbstractString ? _leaf_to_number(aargs[2]) : nothing
+                bexp == 3 && return aargs[1]
+            end
+        end
+        if op == "exp" && !(args[1] isa AbstractString)
+            aop, aargs = args[1]
+            if aop == "*" && length(aargs) == 2
+                for (c, l) in ((aargs[1], aargs[2]), (aargs[2], aargs[1]))
+                    if !(l isa AbstractString)
+                        lop, largs = l
+                        lop == "log" && length(largs) == 1 && return ("pow", [largs[1], c])
+                    end
+                end
+            end
+        end
+    elseif length(args) == 2
+        if op == "pow"
+            e = argn(2)
+            e == 1 && return args[1]
+            if !(args[1] isa AbstractString)
+                bop, bargs = args[1]
+                bop == "cbrt" && length(bargs) == 1 && e == 3 && return bargs[1]
+            end
+        end
+    end
+
+    return (op, args)
+end
+
+function _jerbie_reduce(x::Num)::Num
+    try
+        tree = parse_sexpr(to_sexpr(x))
+        folded = _jerbie_reduce_tree(tree)
+        vars = Dict{String, Num}(name => Num(Symbolics.variable(Symbol(name))) for name in _tree_symbols(folded))
+        return build_expr(folded, vars)
+    catch
+        return x
+    end
+end
+
+"""
+    series_ref(s::TSeries, n::Int) -> Num
+
+n-th coefficient of `s`, computed and cached on demand.
+"""
 function series_ref(s::TSeries, n::Int)::Num
     for i in length(s.cache):n
         fetch = j -> s.cache[j]
-        raw = fold_roots(Num(simplify(s.builder(fetch, i))))
+        raw = fold_roots(_jerbie_reduce(Num(simplify(s.builder(fetch, i)))))
         s.cache[i] = Num(to_bigInt(Symbolics.unwrap(raw)))
     end
     return s.cache[n]
 end
 
+"""
+    series_function(s::TSeries) -> Function
+
+Wraps a TSeries as a plain `n -> coefficient` function.
+"""
 function series_function(s::TSeries)
     return n -> series_ref(s, n)
 end
@@ -108,19 +239,31 @@ Julia's factorial() throws OverflowError after n=20
 """
 safe_factorial(n::Integer) = n > 20 ? factorial(big(n)) : factorial(n)
 
-# zero-series
+"""
+    zero_series(s::TSeries) -> Function
+
+View of `s` reindexed so index 0 is its first (offset) term.
+"""
 function zero_series(s::TSeries)::Function
     return n -> n < -s.offset ? Num(0) : series_ref(s, n + s.offset)
 end
 
-# taylor-exact
+"""
+    taylor_exact(terms::Num...) -> TSeries
+
+Exact/finite series with the given literal Num coefficients.
+"""
 function taylor_exact(terms::Num...)::TSeries
     items = collect(terms)
     len = length(items)
     return make_series(0, (fetch, n) -> n < len ? items[n+1] : Num(0))
 end
 
-# first-nonzero-exp
+"""
+    first_nonzero_exp(f::Function) -> Int
+
+Lowest `n` with `f(n) != 0` (capped at 20).
+"""
 function first_nonzero_exp(f::Function)::Int
     n = 0
     while isequal(f(n), 0) && n < 20
@@ -129,14 +272,22 @@ function first_nonzero_exp(f::Function)::Int
     return n
 end
 
-# normalize-series
+"""
+    normalize_series(s::TSeries) -> TSeries
+
+Shifts `s` so its lowest nonzero term is at offset 0.
+"""
 function normalize_series(s::TSeries)::TSeries
     slack = first_nonzero_exp(series_function(s))
     slack == 0 && return s
     return make_series(s.offset - slack, (fetch, n) -> series_ref(s, n + slack))
 end
 
-# taylor-add
+"""
+    taylor_add(left::TSeries, right::TSeries) -> TSeries
+
+Sum of two Taylor series.
+"""
 function taylor_add(left::TSeries, right::TSeries)::TSeries
     target_offset = max(left.offset, right.offset)
     function align(offset, series)
@@ -149,12 +300,20 @@ function taylor_add(left::TSeries, right::TSeries)::TSeries
     return make_series(target_offset, (fetch, n) -> left_(n) + right_(n))
 end
 
-# taylor-negate
+"""
+    taylor_negate(term::TSeries) -> TSeries
+
+Negation of a Taylor series.
+"""
 function taylor_negate(term::TSeries)::TSeries
     return make_series(term.offset, (fetch, n) -> -series_ref(term, n))
 end
 
-# taylor-mult
+"""
+    taylor_mult(left::TSeries, right::TSeries) -> TSeries
+
+Cauchy product of two Taylor series.
+"""
 function taylor_mult(left::TSeries, right::TSeries)::TSeries
     offset = left.offset + right.offset
     function builder(fetch, n)
@@ -170,7 +329,11 @@ function taylor_mult(left::TSeries, right::TSeries)::TSeries
     return make_series(offset, builder)
 end
 
-# taylor-invert
+"""
+    taylor_invert(term::TSeries) -> TSeries
+
+Reciprocal (1/term) as a Taylor series.
+"""
 function taylor_invert(term::TSeries)::TSeries
     normalized = normalize_series(term)
     b = series_function(normalized)
@@ -181,7 +344,11 @@ function taylor_invert(term::TSeries)::TSeries
     return make_series(-normalized.offset, builder)
 end
 
-# taylor-quotient
+"""
+    taylor_quotient(num::TSeries, denom::TSeries) -> TSeries
+
+`num/denom` as a Taylor series.
+"""
 function taylor_quotient(num::TSeries, denom::TSeries)::TSeries
     nn = normalize_series(num)
     nd = normalize_series(denom)
@@ -195,7 +362,12 @@ function taylor_quotient(num::TSeries, denom::TSeries)::TSeries
     return make_series(nn.offset - nd.offset, builder)
 end
 
-# modulo-series
+"""
+    modulo_series(var, n::Int, s::TSeries) -> TSeries
+
+Reindexes `s` to only have nonzero terms at multiples of `n` (used by
+taylor_sqrt/taylor_cbrt).
+"""
 function modulo_series(var, n::Int, s::TSeries)::TSeries
     normalized = normalize_series(s)
     offset = normalized.offset
@@ -220,7 +392,11 @@ function modulo_series(var, n::Int, s::TSeries)::TSeries
     return make_series(offset_star, (fetch, i) -> coeffs_star(i))
 end
 
-# taylor-sqrt
+"""
+    taylor_sqrt(var, num::TSeries) -> TSeries
+
+`sqrt(num)` as a Taylor series.
+"""
 function taylor_sqrt(var, num::TSeries)::TSeries
     normalized = modulo_series(var, 2, num)
     offset_star = normalized.offset
@@ -264,6 +440,11 @@ function n_sum_to(num_slots::Int, target_sum::Int)::Vector{Vector{Int}}
     return n_sum_to_cache[key] = result
 end
 
+"""
+    taylor_cbrt(var, num::TSeries) -> TSeries
+
+`cbrt(num)` as a Taylor series.
+"""
 function taylor_cbrt(var, num::TSeries)::TSeries
     normalized = modulo_series(var, 3, num)
     offset_star = normalized.offset
@@ -281,7 +462,12 @@ function taylor_cbrt(var, num::TSeries)::TSeries
     return make_series(offset_star ÷ 3, builder)
 end
 
-# taylor-fabs 
+"""
+    taylor_fabs(var, term::TSeries) -> Union{TSeries, Nothing}
+
+`abs(term)` as a Taylor series, or `nothing` if the sign at 0 can't be
+determined.
+"""
 function taylor_fabs(var, term::TSeries)::Union{TSeries,Nothing}
     normalized = normalize_series(term)
     offset = normalized.offset
@@ -297,7 +483,7 @@ function taylor_fabs(var, term::TSeries)::Union{TSeries,Nothing}
         return normalized
     elseif isodd(offset)
         sign_factor = a0_val < 0 ? -1 : 1
-        scale_factor = abs(var) * sign_factor
+        scale_factor = fabs(var) * sign_factor
         new_offset = offset + 1
         return make_series(new_offset,
             (fetch, n) -> n == 0 ? scale_factor : series_ref(normalized, n + (new_offset - offset)))
@@ -306,7 +492,11 @@ function taylor_fabs(var, term::TSeries)::Union{TSeries,Nothing}
     end
 end
 
-# taylor-pow (Russian peasant)
+"""
+    taylor_pow(coeffs::TSeries, n::Int) -> TSeries
+
+`coeffs^n` as a Taylor series (Russian-peasant exponentiation).
+"""
 function taylor_pow(coeffs::TSeries, n::Int)::TSeries
     n < 0 && return taylor_pow(taylor_invert(coeffs), -n)
     n == 0 && return taylor_exact(Num(1))
@@ -320,7 +510,12 @@ function taylor_pow(coeffs::TSeries, n::Int)::TSeries
     end
 end
 
-# all-partitions
+"""
+    all_partitions(n::Int, options::Vector{Int}) -> Vector{Vector{Tuple{Int,Int}}}
+
+Every way to write `n` as a sum of `count*k` for `k` in `options`, as
+`(count, k)` pairs.
+"""
 function all_partitions(n::Int, options::Vector{Int})::Vector{Vector{Tuple{Int,Int}}}
     isempty(options) && return n == 0 ? [Tuple{Int,Int}[]] : Vector{Tuple{Int,Int}}[]
     k = options[1]
@@ -340,7 +535,11 @@ function all_partitions(n::Int, options::Vector{Int})::Vector{Vector{Tuple{Int,I
     return result
 end
 
-# taylor-exp
+"""
+    taylor_exp(coeffs::Function) -> TSeries
+
+`exp(coeffs)` as a Taylor series.
+"""
 function taylor_exp(coeffs::Function)::TSeries
     function builder(fetch, n)
         n == 0 && return exp(coeffs(0))
@@ -360,7 +559,11 @@ function taylor_exp(coeffs::Function)::TSeries
     return make_series(0, builder)
 end
 
-# taylor-sin
+"""
+    taylor_sin(coeffs::Function) -> TSeries
+
+`sin(coeffs)` as a Taylor series (`coeffs(0)` assumed 0).
+"""
 function taylor_sin(coeffs::Function)::TSeries
     function builder(fetch, n)
         n == 0 && return Num(0)
@@ -382,7 +585,11 @@ function taylor_sin(coeffs::Function)::TSeries
     return make_series(0, builder)
 end
 
-# taylor-cos
+"""
+    taylor_cos(coeffs::Function) -> TSeries
+
+`cos(coeffs)` as a Taylor series (`coeffs(0)` assumed 0).
+"""
 function taylor_cos(coeffs::Function)::TSeries
     function builder(fetch, n)
         n == 0 && return Num(1)
@@ -452,6 +659,11 @@ function logcompute(i::Int)::Vector{Vector{Int}}
     return _log_cache[i] = logstep(logcompute(i - 1))
 end
 
+"""
+    taylor_log(var, arg::TSeries) -> TSeries
+
+`log(arg)` as a Taylor series.
+"""
 function taylor_log(var, arg::TSeries)::TSeries
     normalized = normalize_series(arg)
     shift = normalized.offset
@@ -486,6 +698,12 @@ function taylor_log(var, arg::TSeries)::TSeries
     return taylor_add(base, shift_term)
 end
 
+"""
+    expand_taylor(tree)
+
+Rewrites tan/cosh/sinh/tanh/asinh/acosh/atanh/pow into exp/log/sqrt/cbrt
+terms, ahead of Taylor expansion.
+"""
 function expand_taylor(tree)
     tree isa AbstractString && return tree
     op, raw_args = tree
@@ -549,6 +767,11 @@ function _tree_to_num(tree, var::Num)::Num
     return from_sexpr(_tree_to_string(tree), vars)
 end
 
+"""
+    taylor_series(var::Num, tree) -> TSeries
+
+Builds the Taylor series of `tree` in `var`, recursing over its operators.
+"""
 function taylor_series(var::Num, tree)::TSeries
     varname = string(var)
 
@@ -619,13 +842,23 @@ function taylor_series(var::Num, tree)::TSeries
     end
 end
 
+"""
+    make_monomial(var, power::Int) -> Num
+
+`var^power`, handling `power <= 0`.
+"""
 function make_monomial(var, power::Int)::Num
     power == 0 && return Num(1)
     power == 1 && return var
-    power == -1 && return 1 / var
+    power < 0 && return 1 / var^(-power)
     return var^power
 end
 
+"""
+    make_horner(var, terms::Vector{Tuple{Num,Int}}, start::Int=0) -> Num
+
+Builds a Horner-form polynomial from `(coeff, power)` terms.
+"""
 function make_horner(var, terms::Vector{Tuple{Num,Int}}, start::Int=0)::Num
     isempty(terms) && return Num(0)
     c, n = terms[1]
@@ -633,6 +866,12 @@ function make_horner(var, terms::Vector{Tuple{Num,Int}}, start::Int=0)::Num
     return make_monomial(var, n - start) * (c + make_horner(var, terms[2:end], n))
 end
 
+"""
+    make_approximator(s::TSeries, orig_var::Num, finv::Function; iters::Int=5) -> Function
+
+Returns a closure that yields s's next nonzero term, as a growing Horner
+polynomial in `finv(orig_var)`, each call.
+"""
 function make_approximator(s::TSeries, orig_var::Num, finv::Function; iters::Int=5)
     result_var = finv(orig_var)
     terms = Tuple{Num,Int}[]
@@ -658,6 +897,8 @@ end
 """
     taylor_candidates(expr::Num, var::Num; max_candidates::Int=2) -> Vector{Num}
 
+Taylor-expansion candidates for `expr` around `var`, `var -> 1/var`, and
+`var -> -1/var`.
 """
 function taylor_candidates(expr::Num, var::Num; max_candidates::Int=2)::Vector{Num}
     candidates = Num[Num(0)]

@@ -10,3 +10,21 @@ egg-jerbie/rival3/
 *.dll
 *.dylib
 Manifest.toml
+
+# compare_herbie.jl generated output (regenerated every run, not source)
+Jerbie.jl/test/single_var_corpus.fpcore
+Jerbie.jl/test/herbie_output.fpcore
+
+# local-only Herbie comparison harness (not tracked in the repo)
+Jerbie.jl/test/compare_herbie.jl
+Jerbie.jl/test/isolated_worker.jl
+Jerbie.jl/test/worker_core.jl
+
+# local-only Herbie cross-check tool
+Jerbie.jl/test/check_on_herbie.jl
+
+# BinaryBuilder local build output
+egg-jerbie/build/
+
+# generated docs output, not source
+Jerbie.jl/docs/build/

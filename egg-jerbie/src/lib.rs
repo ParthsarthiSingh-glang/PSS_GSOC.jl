@@ -1,7 +1,6 @@
 #![recursion_limit = "256"]
 
 mod herbie_rules;
-mod my_rules;
 mod to_rival;
 mod discretization;
 mod domain_search;
@@ -317,8 +316,6 @@ fn stop_reason_to_u8(reason: &Option<StopReason>) -> u8 {
     }
 }
 
-// node_limit=4000 matches Herbie's *node-limit* (herbie/src/config.rkt)
-// no iter_limit — Herbie uses unlimited iterations, relies on node_limit + BackoffScheduler
 #[no_mangle]
 pub extern "C" fn egraph_saturate(ptr: *mut EGraphWithRoot) {
     let eg = unsafe { &mut *ptr };

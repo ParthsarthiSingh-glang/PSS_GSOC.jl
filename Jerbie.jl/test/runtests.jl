@@ -1,10 +1,16 @@
 using Test
 using Symbolics
+using Distributed
+import Logging
 
-include("../src/Jerbie.jl")
-using .Jerbie
+include("fpcore_bench.jl")  # brings in Jerbie (transitively) + all bench_* + x,y,a,b,c,...
 
-@variables x y a b c
+const N_WORKERS = 4 # 4 workers was good enough for my laptop
+if nprocs() == 1
+    addprocs(N_WORKERS)
+end
+@everywhere workers() include(joinpath($(@__DIR__), "fpcore_bench.jl"))
+@everywhere workers() import Logging
 
 @testset "e2e tests" begin
     @variables x y
@@ -102,4 +108,35 @@ end
 
     # cbrt of expression with subtraction
     @test Jerbie.to_sexpr(cbrt(a - b)) == "(cbrt (- a b))"
+end
+
+# ─────────────────────────────────────────────────────────────────────────────
+# fpcore expr — every bench_* in fpcore_bench.jl  optimize_expr()
+# ─────────────────────────────────────────────────────────────────────────────
+
+@testset "fpcore expr" begin
+    # single-variable only -- sample_context/rival_sample (sampling.jl) only supports one variable
+    all_names = [n for n in names(Main, all = true) if startswith(string(n), "bench_")]
+    bench_names = [n for n in all_names
+                   if length(Symbolics.get_variables(getfield(Main, n))) == 1]
+    jobs = [(name = string(name),
+             sexpr_str = to_sexpr(getfield(Main, name)),
+             varnames = string.(Symbolics.get_variables(getfield(Main, name))))
+            for name in bench_names]
+
+    pool = WorkerPool(workers())
+    results = pmap(pool, jobs;
+                    on_error = e -> (ok = false, err = sprint(showerror, e))) do job
+        vars = Dict(v => Num(Symbolics.variable(Symbol(v))) for v in job.varnames)
+        expr = from_sexpr(job.sexpr_str, vars)
+        varlist = [vars[v] for v in job.varnames]
+        Logging.with_logger(Logging.NullLogger()) do
+            optimize_expr(expr, varlist; verbose = false)
+        end
+        (ok = true, err = nothing)
+    end
+
+    @testset "$(jobs[i].name)" for i in eachindex(jobs)
+        @test results[i].ok
+    end
 end

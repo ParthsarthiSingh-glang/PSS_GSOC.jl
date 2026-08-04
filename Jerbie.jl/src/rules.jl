@@ -33,7 +33,7 @@ const OP_MAP = Dict{String, Any}(
     # General Math — unary
     "sqrt" => sqrt,
     "cbrt" => cbrt,
-    "abs" => abs,
+    "abs" => fabs,
     "abs2" => abs2,
     "inv" => inv,
     "log2" => log2,
@@ -91,7 +91,7 @@ const OP_MAP = Dict{String, Any}(
     "fma" => fma,
 
     # Herbie extras — herbie/egg-herbie/src/math.rs
-    "fabs" => abs,
+    "fabs" => fabs,
     "ceil" => ceil,
     "floor" => floor,
     "round" => round,

@@ -1,5 +1,10 @@
 # core/mainloop.rkt.
 
+"""
+    NUM_ITERATIONS
+
+Max number of search iterations per run_improve! /run_improve_with_report call.
+"""
 const NUM_ITERATIONS = 4  # config.rkt *num-iterations*
 
 """
@@ -42,6 +47,7 @@ end
 """
     rewrite_variations(expr::Num; warn::Bool=true) -> Vector{Num}
 
+Like the 2-arg method, inferring vars from `expr`.
 """
 function rewrite_variations(expr::Num; warn::Bool = true)::Vector{Num}
     vars = Dict{String, Num}(string(v) => Num(v) for v in Symbolics.get_variables(expr))
@@ -142,6 +148,8 @@ DerivationLog(root::String) = DerivationLog(Dict{String, String}(), Dict{String,
 """
     run_iteration!(table::AltTable, vars; dlog=nothing) -> AltTable
 
+One search iteration: rewrites + Taylor variations of pending alts, scored
+and merged into `table`.
 """
 function run_iteration!(table::AltTable, vars; dlog::Union{Nothing, DerivationLog} = nothing)::AltTable
     pending_keys = atab_not_done_alts(table)
@@ -213,6 +221,7 @@ end
 """
     extract_sorted!(table::AltTable, vars) -> Vector{Num}
 
+Every alt in `table`, ranked best-first by (accuracy, cost).
 """
 function extract_sorted!(table::AltTable, vars)::Vector{Num}
     all_keys = atab_all_alts(table)
@@ -259,6 +268,7 @@ end
 """
     run_improve!(expr::Num, vars=Symbolics.get_variables(expr); n::Int=256) -> Num
 
+Runs the search and returns just the winning expression (no scores/report).
 """
 function run_improve!(expr::Num, vars = Symbolics.get_variables(expr); n::Int = 256)::Num
     pre = preprocess_expr(expr, vars; n = n)
@@ -271,6 +281,8 @@ end
 """
     DerivationStep
 
+One step of a rewrite-proof chain: `from` became `to` via a rewrite or a
+Taylor expansion, with the rule-level `proof` text if available.
 """
 struct DerivationStep
     kind::Symbol   # :rewrite or :taylor
@@ -302,7 +314,9 @@ end
 
 """
     build_derivation(dlog::DerivationLog, vars, key::String) -> Vector{DerivationStep}
-.
+
+Walks dlog's parent chain back to the root, building the DerivationStep
+chain for the alt with the given key.
 """
 function build_derivation(dlog::DerivationLog, vars, key::String)::Vector{DerivationStep}
     chain_keys = String[key]
@@ -340,6 +354,7 @@ const _RULE_TAG_RE = r"Rewrite(?:=>|<=)\s+(\S+)"
 """
     print_derivation(steps::Vector{DerivationStep})
 
+Prints a DerivationStep chain, one step per line, with rule names if present.
 """
 function print_derivation(steps::Vector{DerivationStep})
     for (i, s) in enumerate(steps)
@@ -361,7 +376,9 @@ end
 
 """
     ImprovementReport
-.
+
+Result of run_improve_with_report: winner, ranked alternatives, per-point
+start/end errors, the held-out test_context, and each alt's derivation.
 """
 struct ImprovementReport
     winner::Num
@@ -385,6 +402,8 @@ end_score(r::ImprovementReport) = errors_score(r.end_errors)
     run_improve_with_report(expr::Num, vars=Symbolics.get_variables(expr);
                              n_train::Int=256, n_test::Int=8000, n_alts::Int=3) -> ImprovementReport
 
+Runs the full search (what optimize_expr wraps) and returns an
+ImprovementReport with the winner, alternatives, and rewrite derivations.
 """
 function run_improve_with_report(expr::Num, vars = Symbolics.get_variables(expr);
                                   n_train::Int = 256, n_test::Int = 8000, n_alts::Int = 3)::ImprovementReport

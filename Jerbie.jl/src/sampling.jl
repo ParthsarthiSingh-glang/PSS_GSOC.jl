@@ -92,15 +92,65 @@ function float_to_bigints(e)
     return e
 end
 
+function _leaf_to_expr(leaf::AbstractString, var_syms::Dict{String,Symbol})
+    haskey(var_syms, leaf) && return var_syms[leaf]
+    n = _leaf_to_number(leaf)
+    n !== nothing && return Float64(n)
+    haskey(NAMED_CONSTANTS, leaf) && return Float64(NAMED_CONSTANTS[leaf])
+    error("fast_eval: unknown leaf '$leaf'")
+end
+
+const NAN_SAFE_OP_MAP = Dict{String,Any}(
+    "sin" => NaNMath.sin, "cos" => NaNMath.cos, "tan" => NaNMath.tan,
+    "asin" => NaNMath.asin, "acos" => NaNMath.acos,
+    "acosh" => NaNMath.acosh, "atanh" => NaNMath.atanh,
+    "log" => NaNMath.log, "log2" => NaNMath.log2, "log10" => NaNMath.log10,
+    "log1p" => NaNMath.log1p, "sqrt" => NaNMath.sqrt,
+)
+
+function _tree_to_expr(tree, var_syms::Dict{String,Symbol})
+    tree isa AbstractString && return _leaf_to_expr(tree, var_syms)
+    op, args = tree
+    if op == "neg"
+        return Expr(:call, -, _tree_to_expr(args[1], var_syms))
+    end
+    if op == "pow" || op == "^"
+        exp_n = _leaf_to_number(args[2])
+        if exp_n isa Rational && !isinteger(exp_n) && isodd(denominator(exp_n))
+            p = numerator(exp_n)
+            exp_float = Float64(exp_n)
+            base_expr = _tree_to_expr(args[1], var_syms)
+            abs_pow = Expr(:call, ^, Expr(:call, abs, base_expr), exp_float)
+            return isodd(p) ? Expr(:call, *, Expr(:call, sign, base_expr), abs_pow) : abs_pow
+        end
+        return Expr(:call, NaNMath.pow, _tree_to_expr(args[1], var_syms), _tree_to_expr(args[2], var_syms))
+    end
+    if op == "fma" || op == "muladd"
+        f = op == "fma" ? fma : muladd
+        return Expr(:call, f, _tree_to_expr(args[1], var_syms), _tree_to_expr(args[2], var_syms),
+                    _tree_to_expr(args[3], var_syms))
+    end
+    f = get(NAN_SAFE_OP_MAP, op, nothing)
+    f === nothing && (f = OP_MAP[op])
+    return Expr(:call, f, [_tree_to_expr(a, var_syms) for a in args]...)
+end
+
 """
     fast_eval(expr, vars) -> Function
-    
+
+Compiles expr into a fast numeric Float64 function of `vars`, NaN-safe (via
+NaNMath) instead of throwing on invalid domains.
 """
 function fast_eval(expr, vars)
-    fixed = fix_odd_root_pow(Num(expr))
-    code = Symbolics.build_function(fixed, vars...; expression=Val{true})
-    f = eval(float_to_bigints(code))
-    return (args...) -> Base.invokelatest(f, args...)
+    tree = parse_sexpr(to_sexpr(Num(expr)))
+    varnames = string.(vars)
+    arg_syms = [Symbol("v", i) for i in eachindex(varnames)]
+    var_syms = Dict{String,Symbol}(varnames[i] => arg_syms[i] for i in eachindex(varnames))
+    body = _tree_to_expr(tree, var_syms)
+    head_expr = Expr(:tuple)
+    append!(head_expr.args, arg_syms)
+    fn_expr = Expr(:->, head_expr, body)
+    return @RuntimeGeneratedFunction(fn_expr)
 end
 
 """

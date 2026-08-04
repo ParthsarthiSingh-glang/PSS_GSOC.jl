@@ -75,6 +75,7 @@ name = "egg-jerbie"
 version = "0.1.0"
 dependencies = [
  "egg",
+ "gmp-mpfr-sys",
  "log",
  "num-bigint",
  "num-integer",

@@ -5,6 +5,12 @@ using SymbolicUtils: BSImpl, MData
 
 include("rules.jl")
 
+"""
+    ExactInfinityError
+
+Thrown when a number can't be represented exactly as a finite rational
+(NaN, Inf, or a zero denominator) during to_sexpr conversion.
+"""
 struct ExactInfinityError <: Exception end
 
 const NAMED_CONSTANTS = Dict{String, Irrational}(
@@ -37,6 +43,12 @@ function _num_to_sexpr(n)::String
     return string(n)
 end
 
+"""
+    to_sexpr(expr) -> String
+
+Converts a Symbolics `Num`/number to prefix s-expression text, for the Rust
+e-graph FFI and display.
+"""
 function to_sexpr(expr)::String
     expr = Symbolics.unwrap(expr)
 
@@ -128,6 +140,11 @@ function _add_to_sexpr(expr)::String
     return _fold_to_binary("+", terms)
 end
 
+"""
+    parse_sexpr(s::AbstractString)
+
+Parses prefix s-expression text into a tree of `(op, args)` tuples/strings.
+"""
 function parse_sexpr(s::AbstractString)
     s = String(strip(s))
     if startswith(s, "(")
@@ -172,13 +189,25 @@ function try_parse_rational(s::String)::Union{Rational{Int}, Rational{BigInt}, N
 end
 
 function _leaf_to_number(tree)::Union{Number, Nothing}
-    tree isa String || return nothing
-    vi = tryparse(Int, tree)
-    vi !== nothing && return vi
-    vr = try_parse_rational(tree)
-    vr !== nothing && return vr
-    vf = tryparse(Float64, tree)
-    vf !== nothing && return vf
+    if tree isa String
+        vi = tryparse(Int, tree)
+        vi !== nothing && return vi
+        vr = try_parse_rational(tree)
+        vr !== nothing && return vr
+        vf = tryparse(Float64, tree)
+        vf !== nothing && return vf
+        return nothing
+    end
+    op, args = tree
+    if op == "/" && length(args) == 2
+        p = _leaf_to_number(args[1])
+        q = _leaf_to_number(args[2])
+        (p isa Integer && q isa Integer && q != 0) && return p // q
+    end
+    if op == "neg" && length(args) == 1
+        n = _leaf_to_number(args[1])
+        n !== nothing && return -n
+    end
     return nothing
 end
 
@@ -210,6 +239,12 @@ function build_expr(tree, vars::Dict{String, Num})::Num
     return Num(TermInterface.maketerm(Symbolics.SymbolicT, f, Symbolics.unwrap.(children), nothing))
 end
 
+"""
+    from_sexpr(s::String, vars::Dict{String, Num}) -> Num
+
+Converts s-expression text back into a Symbolics `Num`, resolving leaf names
+against `vars`. The reverse of [`to_sexpr`](@ref).
+"""
 function from_sexpr(s::String, vars::Dict{String, Num})::Num
     build_expr(parse_sexpr(s), vars)
 end

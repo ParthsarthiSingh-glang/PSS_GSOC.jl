@@ -861,6 +861,19 @@ bench_randgamma = let dv = a - 1/3; cv = 1/sqrt(9*dv); vv = 1 + cv*x;
     dv * vv^3 end
 
 # ─────────────────────────────────────────────────────────────────────────────
+# from egraphtests.jl's (a,b) case sweep — sqrt(x+a) - sqrt(x+b)
+# (case a=1,b=0 already covered by bench_sqrt_A / bench_2sqrt, skipped here)
+# ─────────────────────────────────────────────────────────────────────────────
+
+bench_sqrtdiff_2_0  = sqrt(x + 2) - sqrt(x)
+bench_sqrtdiff_0_1  = sqrt(x) - sqrt(x + 1)
+bench_sqrtdiff_0_2  = sqrt(x) - sqrt(x + 2)
+bench_sqrtdiff_3_2  = sqrt(x + 3) - sqrt(x + 2)
+bench_sqrtdiff_3_m2 = sqrt(x + 3) - sqrt(x - 2)
+bench_sqrtdiff_m2_3 = sqrt(x - 2) - sqrt(x + 3)
+bench_sqrtdiff_m3_m2 = sqrt(x - 3) - sqrt(x - 2)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # END OF BENCHMARK EXPRESSIONS
-# Total: ~263 expressions (180 simple + 83 let-inlined)
+# Total: ~270 expressions (187 simple + 83 let-inlined)
 # ─────────────────────────────────────────────────────────────────────────────
