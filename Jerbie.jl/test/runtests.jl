@@ -138,6 +138,7 @@ end
     end
 
     @testset "$(jobs[i].name)" for i in eachindex(jobs)
+        results[i].ok || println(results[i].err)
         @test results[i].ok
     end
 end
