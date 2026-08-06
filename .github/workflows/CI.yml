@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust FFI library
+        working-directory: egg-jerbie
+        run: cargo build --release
+
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+
+      - uses: actions/cache@v6
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('Jerbie.jl/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+
+      - uses: julia-actions/julia-buildpkg@v1
+        with:
+          project: Jerbie.jl
+
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          project: Jerbie.jl
