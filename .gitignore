@@ -1,8 +1,8 @@
 # Rust build output
-egg-jerbie/target/
+Jerbie.jl/deps/egg-jerbie/target/
 
 # vendored at build time (see BINARYBUILDER.md plan) — not committed
-egg-jerbie/rival3/
+Jerbie.jl/deps/egg-jerbie/rival3/
 
 # Julia artifacts
 *.ji
@@ -24,7 +24,7 @@ Jerbie.jl/test/worker_core.jl
 Jerbie.jl/test/check_on_herbie.jl
 
 # BinaryBuilder local build output
-egg-jerbie/build/
+Jerbie.jl/deps/egg-jerbie/build/
 
 # generated docs output, not source
 Jerbie.jl/docs/build/

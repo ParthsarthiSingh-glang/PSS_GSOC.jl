@@ -8,7 +8,7 @@ sources = [
 ]
 
 script = raw"""
-cd $WORKSPACE/srcdir/Jerbie.jl/egg-jerbie
+cd $WORKSPACE/srcdir/Jerbie.jl/Jerbie.jl/deps/egg-jerbie
 
 # musl needs crt-static disabled for cdylib
 if [[ "${target}" == *-musl* ]]; then
@@ -17,7 +17,7 @@ fi
 
 cargo build --release
 install -Dvm 755 target/${rust_target}/release/*jerbie.${dlext} "${libdir}/libjerbie.${dlext}"
-install_license ../LICENSE
+install_license ../../../LICENSE
 """
 
 platforms = supported_platforms()

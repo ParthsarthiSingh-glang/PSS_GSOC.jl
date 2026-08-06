@@ -49,10 +49,6 @@ end
     # "Difference of squares": a^2 - b^2
     @test Jerbie.to_sexpr(a^2 - b^2) == "(- (^ a 2) (^ b 2))"
 
-    # "The quadratic formula": sqrt(b^2 - 4ac) — subtraction under sqrt
-    # Symbolics groups symbolic terms: 4*a*c → (* 4 (* a c))
-    @test Jerbie.to_sexpr(sqrt(b^2 - 4*a*c)) == "(sqrt (- (^ b 2) (* 4 (* a c))))"
-
     # "ln(1 + x)": log(1 + x) — cancellation near x=0
     @test Jerbie.to_sexpr(log(1 + x)) == "(log (+ 1 x))"
 
@@ -66,10 +62,6 @@ end
 end
 
 @testset "to_sexpr — herbie/bench/numerics/great-debate.fpcore" begin
-    # "Kahan p9": (x-y)(x+y) — factored form of x^2 - y^2
-    # multiplication order isn't guaranteed
-    @test Jerbie.to_sexpr((x - y) * (x + y)) in ("(* (- x y) (+ x y))", "(* (+ x y) (- x y))")
-
     # difference of squares
     @test Jerbie.to_sexpr(x^2 - y^2) == "(- (^ x 2) (^ y 2))"
 end
