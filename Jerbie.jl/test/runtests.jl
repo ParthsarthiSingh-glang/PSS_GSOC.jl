@@ -67,7 +67,8 @@ end
 
 @testset "to_sexpr — herbie/bench/numerics/great-debate.fpcore" begin
     # "Kahan p9": (x-y)(x+y) — factored form of x^2 - y^2
-    @test Jerbie.to_sexpr((x - y) * (x + y)) == "(* (- x y) (+ x y))"
+    # multiplication order isn't guaranteed
+    @test Jerbie.to_sexpr((x - y) * (x + y)) in ("(* (- x y) (+ x y))", "(* (+ x y) (- x y))")
 
     # difference of squares
     @test Jerbie.to_sexpr(x^2 - y^2) == "(- (^ x 2) (^ y 2))"
