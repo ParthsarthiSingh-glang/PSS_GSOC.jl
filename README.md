@@ -43,6 +43,16 @@ on every push to `main`.
 - [`rival3`](https://github.com/herbie-fp/rival3) — a Rust dependency of
   `egg-jerbie`, used to evaluate each rewrite candidate against real-valued
   sample points to score its floating-point accuracy.
+
+  **Why not a Julia-native solution?** Scoring runs 256 train + 8000 test
+  sample points per candidate, per benchmark — doing this in Rust alongside
+  the e-graph avoids FFI round-trips for that whole workload. `rival3` is
+  also a direct Rust port of Herbie's own `rival` library, so it's proven
+  methodology rather than a from-scratch reimplementation of floating-point
+  edge cases (which are notoriously easy to get subtly wrong). It also
+  directly handles problems that don't currently have a solved Julia-side
+  answer, e.g. [fast ULP distance between two floats](https://discourse.julialang.org/t/calculating-ulp-distance-between-two-floating-point-numbers-quickly/61581/3)
+  and sound domain-finding for an expression's variables.
 - [Herbie](https://herbie.uwplse.org/) — the Racket tool this project's
   search+score approach is directly modeled on. Herbie solves the same
   problem (find a more accurate equivalent of a floating-point expression);
