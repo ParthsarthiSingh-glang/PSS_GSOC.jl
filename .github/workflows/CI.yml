@@ -16,7 +16,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Build Rust FFI library
-        working-directory: egg-jerbie
+        working-directory: Jerbie.jl/deps/egg-jerbie
         run: cargo build --release
 
       - uses: julia-actions/setup-julia@v1
