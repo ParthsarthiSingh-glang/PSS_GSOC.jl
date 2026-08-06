@@ -10,12 +10,19 @@ sources = [
 script = raw"""
 cd $WORKSPACE/srcdir/Jerbie.jl/egg-jerbie
 
+# musl needs crt-static disabled for cdylib
+if [[ "${target}" == *-musl* ]]; then
+    export RUSTFLAGS="-C target-feature=-crt-static"
+fi
+
 cargo build --release
 install -Dvm 755 target/${rust_target}/release/*jerbie.${dlext} "${libdir}/libjerbie.${dlext}"
 install_license ../LICENSE
 """
 
-platforms = supported_platforms(exclude=p -> libc(p) == "musl" || p == Platform("i686", "windows"))
+platforms = supported_platforms()
+# i686 Windows Rust toolchain is unusable
+filter!(p -> !Sys.iswindows(p) || arch(p) != "i686", platforms)
 
 products = [
     LibraryProduct("libjerbie", :libjerbie)
