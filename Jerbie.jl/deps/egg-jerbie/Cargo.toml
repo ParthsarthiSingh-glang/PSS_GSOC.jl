@@ -19,3 +19,12 @@ rug = { version = "1.28", features = ["float"] }
 gmp-mpfr-sys = { version = "1.7", features = ["force-cross"] }
 rand = "0.9"
 
+# Patched: use-system-libs' system-lib detection normally compiles AND
+# executes a test binary, which fails when cross-compiling (can't run a
+# Darwin binary on the Linux BB sandbox). Everything it needs is actually
+# just preprocessor macros from gmp.h/mpfr.h, so the patch replaces
+# compile+execute with preprocess-only (-E -dM). See
+# deps/gmp-mpfr-sys-patched/build.rs for the change.
+[patch.crates-io]
+gmp-mpfr-sys = { path = "../gmp-mpfr-sys-patched" }
+

@@ -4,7 +4,9 @@ name = "Jerbie"
 version = v"0.1.0"
 
 sources = [
-    GitSource("https://github.com/JuliaSymbolics/Jerbie.jl.git", "1ed69d016e66e716fa3c91505e549955a176c0be"),
+    # TEMPORARY: pinned to the fork's build-jl branch for local testing only.
+    # Revert to upstream JuliaSymbolics/Jerbie.jl once build-jl is merged.
+    GitSource("https://github.com/ParthsarthiSingh-glang/Jerbie.jl.git", "c72345484fc9082bfa312f90899ac9c20318aba2"),
 ]
 
 script = raw"""
@@ -15,7 +17,7 @@ if [[ "${target}" == *-musl* ]]; then
     export RUSTFLAGS="-C target-feature=-crt-static"
 fi
 
-cargo build --release
+cargo build --release --features gmp-mpfr-sys/use-system-libs
 install -Dvm 755 target/${rust_target}/release/*jerbie.${dlext} "${libdir}/libjerbie.${dlext}"
 install_license ../../../LICENSE
 """
@@ -30,6 +32,8 @@ products = [
 
 dependencies = Dependency[
     Dependency("CompilerSupportLibraries_jll"),
+    Dependency("GMP_jll"),
+    Dependency("MPFR_jll"),
 ]
 
 build_tarballs(ARGS, name, version, sources, script, platforms, products, dependencies; julia_compat="1.9", compilers=[:rust, :c], preferred_gcc_version=v"8")
