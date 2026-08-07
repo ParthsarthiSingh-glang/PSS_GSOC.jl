@@ -242,20 +242,13 @@ fn check_system_libs(env: &Environment) {
         println!("$ #Check for system MPC");
         create_file_or_panic(&try_dir.join("system_mpc.c"), SYSTEM_MPC_C);
 
+        // PATCHED: same reasoning as system_gmp.c above -- MPC_VERSION_*
+        // are preprocessor macros from mpc.h, preprocess-only is enough.
         cmd = Command::new(&env.c_compiler);
-        cmd.current_dir(&try_dir).args([
-            "-fPIC",
-            "system_mpc.c",
-            "-lmpc",
-            "-lgmp",
-            "-o",
-            "system_mpc.exe",
-        ]);
-        execute(cmd);
-
-        cmd = Command::new(try_dir.join("system_mpc.exe"));
-        cmd.current_dir(&try_dir);
-        execute(cmd);
+        cmd.current_dir(&try_dir).args(["-E", "-dM", "system_mpc.c"]);
+        let stdout = execute_stdout(cmd);
+        fs::write(try_dir.join("system_mpc.out"), &stdout)
+            .unwrap_or_else(|_| panic!("Unable to write system_mpc.out"));
         process_mpc_header(
             env,
             &try_dir.join("system_mpc.out"),
