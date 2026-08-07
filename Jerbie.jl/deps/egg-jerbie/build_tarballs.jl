@@ -6,7 +6,7 @@ version = v"0.1.0"
 sources = [
     # TEMPORARY: pinned to the fork's build-jl branch for local testing only.
     # Revert to upstream JuliaSymbolics/Jerbie.jl once build-jl is merged.
-    GitSource("https://github.com/ParthsarthiSingh-glang/Jerbie.jl.git", "ef46916efc52753bfebb7b7da34efab52fe03d60"),
+    GitSource("https://github.com/ParthsarthiSingh-glang/Jerbie.jl.git", "07058fb340a1ffa73ab2bd9fe608e25bfc4d1287"),
 ]
 
 script = raw"""
