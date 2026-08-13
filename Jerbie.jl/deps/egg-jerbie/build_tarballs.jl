@@ -1,3 +1,17 @@
+# This script clones gmp-mpfr-sys (LGPL-3.0+) fresh at build time and patches
+# its build.rs (gmp-mpfr-sys-cross-compile-fix.diff) for cross-compile safety.
+# build.rs itself carries its own permissive notice, not the crate's LGPL:
+#
+#   Copyright © 2017-2026 Trevor Spiteri
+#
+#   Copying and distribution of this file, with or without
+#   modification, are permitted in any medium without royalty provided
+#   the copyright notice and this notice are preserved. This file is
+#   offered as-is, without any warranty.
+#
+# which permits exactly this (copy + modify, notices preserved, nothing
+# redistributed from this repo). LGPL-3.0+ is MIT-compatible; we also install
+# a copy of gmp-mpfr-sys's LGPL license alongside Jerbie's.
 using BinaryBuilder, Pkg
 
 name = "Jerbie"
@@ -33,7 +47,7 @@ fi
 
 cargo build --release --features gmp-mpfr-sys/use-system-libs
 install -Dvm 755 target/${rust_target}/release/*jerbie.${dlext} "${libdir}/libjerbie.${dlext}"
-install_license ../../../LICENSE
+install_license ../../../LICENSE "$WORKSPACE/gmp-mpfr-sys-fixed/LICENSE-LGPL.md"
 """
 
 platforms = supported_platforms()
