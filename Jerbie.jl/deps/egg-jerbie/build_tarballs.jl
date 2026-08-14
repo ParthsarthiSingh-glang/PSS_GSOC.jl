@@ -1,6 +1,6 @@
 # This script clones gmp-mpfr-sys (LGPL-3.0+) fresh at build time and patches
 # its build.rs (gmp-mpfr-sys-cross-compile-fix.diff) for cross-compile safety.
-# build.rs itself carries its own permissive notice, not the crate's LGPL:
+# build.rs itself carries its own permissive notice:
 #
 #   Copyright © 2017-2026 Trevor Spiteri
 #
