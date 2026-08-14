@@ -17,7 +17,7 @@ NaNMath.pow(x::Integer, y::Integer) = NaNMath.pow(float(x), y)
 
 # compile lib.rs and DIR where (.dll on Windows, .so on Linux, .dylib on Mac) lives
 const LIBPATH = joinpath(
-    @__DIR__, "..", "..", "egg-jerbie", "target", "release",
+    @__DIR__, "..", "deps", "egg-jerbie", "target", "release",
     Sys.iswindows() ? "jerbie" : "libjerbie")
 
 include("converter.jl")

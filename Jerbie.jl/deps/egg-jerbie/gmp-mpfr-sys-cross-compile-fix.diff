@@ -1,0 +1,85 @@
+--- a/build.rs	2026-08-07 13:39:36.979726100 +0530
++++ b/build.rs	2026-08-07 13:39:37.011292700 +0530
+@@ -194,14 +194,20 @@
+     println!("$ #Check for system GMP");
+     create_file_or_panic(&try_dir.join("system_gmp.c"), SYSTEM_GMP_C);
+ 
++    // PATCHED: everything system_gmp.c prints is a preprocessor macro from
++    // gmp.h (version, GMP_LIMB_BITS, GMP_NAIL_BITS, __GMP_CC, __GMP_CFLAGS,
++    // _LONG_LONG_LIMB) -- none of it needs the program to actually run, so
++    // preprocess-only (-E -dM) instead of compile+link+execute. This avoids
++    // needing to execute a target binary during cross-compilation.
+     let mut cmd = Command::new(&env.c_compiler);
+-    cmd.current_dir(&try_dir)
+-        .args(["-fPIC", "system_gmp.c", "-lgmp", "-o", "system_gmp.exe"]);
+-    execute(cmd);
+-
+-    cmd = Command::new(try_dir.join("system_gmp.exe"));
+-    cmd.current_dir(&try_dir);
+-    execute(cmd);
++    cmd.current_dir(&try_dir).args(["-E", "-dM", "system_gmp.c"]);
++    let stdout = execute_stdout(cmd);
++    let mut out = String::from_utf8_lossy(&stdout).into_owned();
++    if !out.contains("_LONG_LONG_LIMB") {
++        out.push_str("#undef _LONG_LONG_LIMB\n");
++    }
++    fs::write(try_dir.join("system_gmp.out"), out.as_bytes())
++        .unwrap_or_else(|_| panic!("Unable to write system_gmp.out"));
+     process_gmp_header(
+         env,
+         &try_dir.join("system_gmp.out"),
+@@ -216,20 +222,14 @@
+         println!("$ #Check for system MPFR");
+         create_file_or_panic(&try_dir.join("system_mpfr.c"), SYSTEM_MPFR_C);
+ 
++        // PATCHED: same reasoning as system_gmp.c above -- MPFR_VERSION_*
++        // are preprocessor macros from mpfr.h, preprocess-only is enough.
+         cmd = Command::new(&env.c_compiler);
+-        cmd.current_dir(&try_dir).args([
+-            "-fPIC",
+-            "system_mpfr.c",
+-            "-lmpfr",
+-            "-lgmp",
+-            "-o",
+-            "system_mpfr.exe",
+-        ]);
+-        execute(cmd);
+-
+-        cmd = Command::new(try_dir.join("system_mpfr.exe"));
+-        cmd.current_dir(&try_dir);
+-        execute(cmd);
++        cmd.current_dir(&try_dir)
++            .args(["-E", "-dM", "system_mpfr.c"]);
++        let stdout = execute_stdout(cmd);
++        fs::write(try_dir.join("system_mpfr.out"), &stdout)
++            .unwrap_or_else(|_| panic!("Unable to write system_mpfr.out"));
+         process_mpfr_header(
+             env,
+             &try_dir.join("system_mpfr.out"),
+@@ -242,20 +242,13 @@
+         println!("$ #Check for system MPC");
+         create_file_or_panic(&try_dir.join("system_mpc.c"), SYSTEM_MPC_C);
+ 
++        // PATCHED: same reasoning as system_gmp.c above -- MPC_VERSION_*
++        // are preprocessor macros from mpc.h, preprocess-only is enough.
+         cmd = Command::new(&env.c_compiler);
+-        cmd.current_dir(&try_dir).args([
+-            "-fPIC",
+-            "system_mpc.c",
+-            "-lmpc",
+-            "-lgmp",
+-            "-o",
+-            "system_mpc.exe",
+-        ]);
+-        execute(cmd);
+-
+-        cmd = Command::new(try_dir.join("system_mpc.exe"));
+-        cmd.current_dir(&try_dir);
+-        execute(cmd);
++        cmd.current_dir(&try_dir).args(["-E", "-dM", "system_mpc.c"]);
++        let stdout = execute_stdout(cmd);
++        fs::write(try_dir.join("system_mpc.out"), &stdout)
++            .unwrap_or_else(|_| panic!("Unable to write system_mpc.out"));
+         process_mpc_header(
+             env,
+             &try_dir.join("system_mpc.out"),
