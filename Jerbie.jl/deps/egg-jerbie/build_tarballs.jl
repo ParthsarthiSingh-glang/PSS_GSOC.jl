@@ -9,9 +9,7 @@
 #   the copyright notice and this notice are preserved. This file is
 #   offered as-is, without any warranty.
 #
-# which permits exactly this (copy + modify, notices preserved, nothing
-# redistributed from this repo). LGPL-3.0+ is MIT-compatible; we also install
-# a copy of gmp-mpfr-sys's LGPL license alongside Jerbie's.
+# We also install a copy of gmp-mpfr-sys's LGPL license alongside Jerbie's.
 using BinaryBuilder, Pkg
 
 name = "Jerbie"
