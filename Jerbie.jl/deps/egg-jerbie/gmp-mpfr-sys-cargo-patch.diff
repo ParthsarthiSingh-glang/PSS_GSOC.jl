@@ -1,0 +1,9 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -18,4 +18,6 @@
+ rug = { version = "1.28", features = ["float"] }
+ gmp-mpfr-sys = { version = "1.7", features = ["force-cross"] }
+ rand = "0.9"
+ 
++[patch.crates-io]
++gmp-mpfr-sys = { path = "../../../../gmp-mpfr-sys-fixed/gmp-mpfr-sys" }
