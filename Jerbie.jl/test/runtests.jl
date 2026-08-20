@@ -12,6 +12,16 @@ end
 @everywhere workers() include(joinpath($(@__DIR__), "fpcore_bench.jl"))
 @everywhere workers() import Logging
 
+@testset "Precompile workload" begin
+    @variables px
+    expr = (px + 1)^2 - 1
+    sexpr = Jerbie.to_sexpr(expr)
+    @test sexpr == "(- (^ (+ 1 px) 2) 1)"
+    @test isequal(Jerbie.from_sexpr(sexpr, Dict("px" => px)), expr)
+    series = Jerbie.taylor_exact(Symbolics.Num(1))
+    @test Jerbie.series_ref(series, 0) == 1
+end
+
 @testset "e2e tests" begin
     @variables x y
 

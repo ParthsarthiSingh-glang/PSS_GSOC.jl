@@ -8,6 +8,7 @@ using SymbolicUtils
 import Base: fma, muladd
 import NaNMath
 using RuntimeGeneratedFunctions
+using PrecompileTools: @compile_workload, @setup_workload
 RuntimeGeneratedFunctions.init(@__MODULE__)
 fabs(x::Real) = abs(x)
 @register_symbolic fabs(x::Real)
@@ -26,6 +27,18 @@ include("pareto.jl")
 include("alttable.jl")
 include("mainloop.jl")
 include("taylor.jl")
+
+@setup_workload begin
+    @variables x
+    expr = (x + 1)^2 - 1
+    @compile_workload begin
+        sexpr = to_sexpr(expr)
+        from_sexpr(sexpr, Dict("x" => x))
+        series = taylor_exact(Num(1))
+        series_ref(series, 0)
+        make_horner(x, [(Num(1), 0), (Num(2), 1)])
+    end
+end
 
 export egraph_create, egraph_saturate!, egraph_stop_reason,
        egraph_extract, egraph_pretty_extract, egraph_destroy,
